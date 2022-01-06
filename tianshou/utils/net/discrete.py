@@ -43,14 +43,19 @@ class Actor(nn.Module):
         softmax_output: bool = True,
         preprocess_net_output_dim: Optional[int] = None,
         device: Union[str, int, torch.device] = "cpu",
+        mask: bool = False
     ) -> None:
         super().__init__()
         self.device = device
         self.preprocess = preprocess_net
+        self.action_shape = action_shape
         self.output_dim = int(np.prod(action_shape))
+        # 这里网络直接输出相当于是每一维动作可选动作数量的乘积
+        # mask的时候就需要注意，之后在开发
         input_dim = getattr(preprocess_net, "output_dim", preprocess_net_output_dim)
         self.last = MLP(input_dim, self.output_dim, hidden_sizes, device=self.device)
         self.softmax_output = softmax_output
+        self.mask = mask
 
     def forward(
         self,
@@ -61,8 +66,28 @@ class Actor(nn.Module):
         r"""Mapping: s -> Q(s, \*)."""
         logits, h = self.preprocess(s, state)
         logits = self.last(logits)
+        # logits: 也许很多行
+        # tensor([[-0.0378, -0.0917],
+        #         [-0.0202, -0.1122]])
+
+        # s:ndarry,和logits行数相同，最后一列是燃料剩余量
+        # [[0.11000,0.00000,1.00000],
+        # [0.11000,1.00000,1.00000]]
         if self.softmax_output:
-            logits = F.softmax(logits, dim=-1)
+            if self.mask:
+                # 针对燃料受限制的问题，把燃料为0的时候的动作全mask掉
+                # s[i,-1] <= 1e-5 时，mask[i]=[1,0]
+                # else , mask[i] = [1,1]
+                # logits = mask dot logits
+                invalid_action_masks = torch.ones_like(logits)
+                for index in range(s.shape[0]):
+                    if s[index][-1] <= 1e-5:
+                        invalid_action_masks[index][-1] = 0
+                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                logits = F.softmax(logits, dim=-1)
+            else:
+                logits = F.softmax(logits, dim=-1)
         return logits, h
 
 

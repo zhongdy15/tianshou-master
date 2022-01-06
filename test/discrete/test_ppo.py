@@ -24,7 +24,7 @@ def get_args():
     parser.add_argument('--buffer-size', type=int, default=20000)
     parser.add_argument('--lr', type=float, default=3e-4)
     parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--epoch', type=int, default=5)
+    parser.add_argument('--epoch', type=int, default=10)
     parser.add_argument('--step-per-epoch', type=int, default=50000)
     parser.add_argument('--step-per-collect', type=int, default=2000)
     parser.add_argument('--repeat-per-collect', type=int, default=10)
@@ -43,10 +43,12 @@ def get_args():
                         help='chances for agent to act')
     parser.add_argument('--dist_interval', type=int, default=1,
                         help='interval for target appear')
-    parser.add_argument('--max_lenth', type=int, default=100,
+    parser.add_argument('--max_lenth', type=int, default=200,
                         help='max_lenth')
     parser.add_argument('--action_penalty', type=int, default=0,
                         help='action_penalty')
+    parser.add_argument('--mask', type=bool, default=True,
+                        help='mask or not')
 
 
 
@@ -100,7 +102,7 @@ def test_ppo(args=get_args()):
         )
         critic = DataParallelNet(Critic(net, device=None).to(args.device))
     else:
-        actor = Actor(net, args.action_shape, device=args.device).to(args.device)
+        actor = Actor(net, args.action_shape, device=args.device, mask=args.mask).to(args.device)
         critic = Critic(net, device=args.device).to(args.device)
     actor_critic = ActorCritic(actor, critic)
     # orthogonal initialization
@@ -139,8 +141,9 @@ def test_ppo(args=get_args()):
                "interval" + str(args.dist_interval) + '_' + \
                "maxstep" + str(args.max_lenth) + '_' + \
                "acpenalty" + str(args.action_penalty) + '_' +\
+               "mask" + str(args.mask) + '_' +\
                time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
-    
+
     log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
     writer = SummaryWriter(log_path)
     logger = TensorboardLogger(writer)
