@@ -140,6 +140,7 @@ def test_ppo(args=get_args()):
                "maxstep" + str(args.max_lenth) + '_' + \
                "acpenalty" + str(args.action_penalty) + '_' +\
                time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
+    
     log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
     writer = SummaryWriter(log_path)
     logger = TensorboardLogger(writer)
