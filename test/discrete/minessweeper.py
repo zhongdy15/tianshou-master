@@ -4,8 +4,8 @@ from gym import spaces
 import numpy as np
 import time
 import torch
-if not torch.cuda.is_available():
-    from gym.envs.classic_control import rendering
+# if not torch.cuda.is_available():
+#     from gym.envs.classic_control import rendering
 
 
 class RunningMan(gym.Env):

@@ -6,7 +6,14 @@ import gym
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
-
+import sys
+package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+# print(package)
+# print(sys.path)
+sys.path.insert(0, package)
+# print(sys.path)
+# import tianshou
+# print(tianshou.utils.__path__)
 from tianshou.data import Collector, VectorReplayBuffer
 from tianshou.env import SubprocVectorEnv
 from tianshou.policy import PPOPolicy
