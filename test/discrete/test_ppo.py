@@ -54,8 +54,8 @@ def get_args():
                         help='max_lenth')
     parser.add_argument('--action_penalty', type=int, default=0,
                         help='action_penalty')
-    parser.add_argument('--mask', type=bool, default=True,
-                        help='mask or not')
+    parser.add_argument("--mask", action="store_true",
+                        help="no mask default")
 
 
 
@@ -71,6 +71,9 @@ def get_args():
     parser.add_argument('--dual-clip', type=float, default=None)
     parser.add_argument('--value-clip', type=int, default=0)
     args = parser.parse_known_args()[0]
+    # print("73")
+    # print(args.mask)
+    # print(args.max_lenth)
     return args
 
 
@@ -85,6 +88,8 @@ def env_make(task, args=get_args()):
 
 def test_ppo(args=get_args()):
     env = env_make(args.task)
+    # print("88")
+    # print(args.mask)
     args.state_shape = env.observation_space.shape or env.observation_space.n
     args.action_shape = env.action_space.shape or env.action_space.n
     # train_envs = env_make(args.task)
@@ -104,11 +109,15 @@ def test_ppo(args=get_args()):
     # model
     net = Net(args.state_shape, hidden_sizes=args.hidden_sizes, device=args.device)
     if torch.cuda.is_available():
+        # print("cuda is available")
+        # print(args.mask)
         actor = DataParallelNet(
-            Actor(net, args.action_shape, device=None).to(args.device)
+            Actor(net, args.action_shape, device=None, mask=args.mask).to(args.device)
         )
         critic = DataParallelNet(Critic(net, device=None).to(args.device))
     else:
+        # print("cuda is not available")
+        # print(args.mask)
         actor = Actor(net, args.action_shape, device=args.device, mask=args.mask).to(args.device)
         critic = Critic(net, device=args.device).to(args.device)
     actor_critic = ActorCritic(actor, critic)
@@ -143,7 +152,8 @@ def test_ppo(args=get_args()):
         policy, train_envs, VectorReplayBuffer(args.buffer_size, len(train_envs))
     )
     test_collector = Collector(policy, test_envs)
-    # log
+    # # log
+    # print(args.mask)
     log_name = "chances" + str(args.initial_chances) + '_' \
                "interval" + str(args.dist_interval) + '_' + \
                "maxstep" + str(args.max_lenth) + '_' + \
