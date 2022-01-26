@@ -7,7 +7,7 @@ from torch import nn
 from tianshou.data import Batch, ReplayBuffer, to_torch_as
 from tianshou.policy import A2CPolicy
 from tianshou.utils.net.common import ActorCritic
-
+import matplotlib.pyplot as plt
 
 class PPOPolicy(A2CPolicy):
     r"""Implementation of Proximal Policy Optimization. arXiv:1707.06347.
@@ -101,9 +101,72 @@ class PPOPolicy(A2CPolicy):
         batch.logp_old = torch.cat(old_log_prob, dim=0)
         return batch
 
+    def state_to_int(self,state):
+        # 对于离散环境，把状态对应到int值上去
+        max_lenth = 200
+        action_chances = 8
+        # state = [0.005,1.,0.875]
+        return int(state[0] * max_lenth + state[1] * (max_lenth+1) + state[2] * action_chances * (max_lenth+1) * 2)
+
     def learn(  # type: ignore
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
     ) -> Dict[str, List[float]]:
+        # 初始化一个矩阵
+        state_discrete_num = self.state_to_int([1, 1, 1]) + 1
+        action_num = 2
+        cal_ssa = np.zeros((state_discrete_num, state_discrete_num, action_num))
+        cal_ss = np.zeros((state_discrete_num, state_discrete_num))
+
+        # 遍历buffer
+        buffer_len = batch["obs"].shape[0]
+        for ii in range(buffer_len):
+            st = batch["obs"][ii]
+            st_next = batch["obs_next"][ii]
+            at = batch["act"][ii]
+
+            st_index = self.state_to_int(st)
+            st_next_index = self.state_to_int(st_next)
+            at_index = int(at)
+            cal_ssa[st_index][st_next_index][at_index] += 1
+            cal_ss[st_index][st_next_index] += 1
+
+        dist = self(batch).dist
+        pi_p = dist.log_prob(batch.act).exp().float()
+        pi_p = pi_p.detach().numpy()
+        # p2 = P(at|st,st')
+        p2 = np.zeros(batch.act.shape)
+
+        for ii in range(buffer_len):
+            st = batch["obs"][ii]
+            st_next = batch["obs_next"][ii]
+            at = batch["act"][ii]
+
+            st_index = self.state_to_int(st)
+            st_next_index = self.state_to_int(st_next)
+            at_index = int(at)
+
+            p2[ii] = cal_ssa[st_index][st_next_index][at_index] / cal_ss[st_index][st_next_index]
+
+        C_phi = p2 / pi_p - 1
+        fuel = batch["obs"][:, -1]
+
+        plt.plot(C_phi, label = "dependency factor", color='r')
+        plt.plot(fuel, label = "fuel remain", color='g')
+        plt.show()
+        fuel_average_C_phi = np.zeros((9))
+        for fuel_remain in range(9):
+            a = C_phi[fuel == fuel_remain/8]
+            a = np.abs(a)
+            fuel_average_C_phi[fuel_remain] = np.average(a)
+        print(fuel_average_C_phi)
+        plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
+        plt.show()
+
+
+
+
+
+
         losses, clip_losses, vf_losses, ent_losses = [], [], [], []
         for step in range(repeat):
             if self._recompute_adv and step > 0:
