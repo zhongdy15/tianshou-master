@@ -86,6 +86,17 @@ class PPOPolicy(A2CPolicy):
         self._recompute_adv = recompute_advantage
         self._actor_critic: ActorCritic
 
+        self.state_discrete_num = self.state_to_int([1, 1, 1]) + 1
+        self.action_num = 2
+        state_discrete_num = self.state_discrete_num
+        action_num = self.action_num
+        cal_ssa = np.zeros((state_discrete_num, state_discrete_num, action_num))
+        cal_ss = np.zeros((state_discrete_num, state_discrete_num))
+        cal_sa = np.zeros((state_discrete_num, action_num))
+        self.cal_ssa = cal_ssa
+        self.cal_ss = cal_ss
+        self.cal_sa = cal_sa
+
     def process_fn(
         self, batch: Batch, buffer: ReplayBuffer, indices: np.ndarray
     ) -> Batch:
@@ -112,11 +123,12 @@ class PPOPolicy(A2CPolicy):
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
     ) -> Dict[str, List[float]]:
         # 初始化一个矩阵
-        state_discrete_num = self.state_to_int([1, 1, 1]) + 1
-        action_num = 2
+        state_discrete_num = self.state_discrete_num
+        action_num = self.action_num
+
         cal_ssa = np.zeros((state_discrete_num, state_discrete_num, action_num))
         cal_ss = np.zeros((state_discrete_num, state_discrete_num))
-
+        cal_sa = np.zeros((state_discrete_num, action_num))
         # 遍历buffer
         buffer_len = batch["obs"].shape[0]
         for ii in range(buffer_len):
@@ -129,6 +141,10 @@ class PPOPolicy(A2CPolicy):
             at_index = int(at)
             cal_ssa[st_index][st_next_index][at_index] += 1
             cal_ss[st_index][st_next_index] += 1
+            cal_sa[st_index][at_index] += 1
+        self.cal_sa = self.cal_sa + cal_sa
+        self.cal_ss = self.cal_ss + cal_ss
+        self.cal_ssa =self.cal_ssa + cal_ssa
 
         dist = self(batch).dist
         pi_p = dist.log_prob(batch.act).exp().float()
@@ -145,22 +161,25 @@ class PPOPolicy(A2CPolicy):
             st_next_index = self.state_to_int(st_next)
             at_index = int(at)
 
-            p2[ii] = cal_ssa[st_index][st_next_index][at_index] / cal_ss[st_index][st_next_index]
-
+            p2[ii] = self.cal_ssa[st_index][st_next_index][at_index] / self.cal_ss[st_index][st_next_index]
+        self.actor.cal_ssa = self.cal_ssa
+        self.actor.cal_sa = self.cal_sa
+        self.actor.cal_ss = self.cal_ss
         C_phi = p2 / pi_p - 1
         fuel = batch["obs"][:, -1]
 
-        plt.plot(C_phi, label = "dependency factor", color='r')
-        plt.plot(fuel, label = "fuel remain", color='g')
-        plt.show()
+        #plt.plot(C_phi, label = "dependency factor", color='r')
+        #plt.plot(fuel, label = "fuel remain", color='g')
+        #plt.show()
         fuel_average_C_phi = np.zeros((9))
         for fuel_remain in range(9):
             a = C_phi[fuel == fuel_remain/8]
             a = np.abs(a)
             fuel_average_C_phi[fuel_remain] = np.average(a)
-        print(fuel_average_C_phi)
-        plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
-        plt.show()
+        #print("fuel_C_phi")
+        #print(fuel_average_C_phi)
+        #plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
+        #plt.show()
 
 
 

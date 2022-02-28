@@ -88,6 +88,9 @@ def env_make(task, args=get_args()):
 
 def test_ppo(args=get_args()):
     env = env_make(args.task)
+
+    args.mask = True
+
     # print("88")
     # print(args.mask)
     args.state_shape = env.observation_space.shape or env.observation_space.n

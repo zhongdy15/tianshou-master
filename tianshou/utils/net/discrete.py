@@ -7,6 +7,7 @@ from torch import nn
 
 from tianshou.data import Batch
 from tianshou.utils.net.common import MLP
+import matplotlib.pyplot as plt
 
 
 class Actor(nn.Module):
@@ -56,6 +57,18 @@ class Actor(nn.Module):
         self.last = MLP(input_dim, self.output_dim, hidden_sizes, device=self.device)
         self.softmax_output = softmax_output
         self.mask = mask
+        self.cal_ss = None
+        self.cal_ssa = None
+        self.cal_sa = None
+        self.fuel_C_phi = [[0.0,] for i in range(9)]
+        self.index = 0
+
+    def state_to_int(self,state):
+        # 对于离散环境，把状态对应到int值上去
+        max_lenth = 200
+        action_chances = 8
+        # state = [0.005,1.,0.875]
+        return int(state[0] * max_lenth + state[1] * (max_lenth+1) + state[2] * action_chances * (max_lenth+1) * 2)
 
     def forward(
         self,
@@ -80,11 +93,72 @@ class Actor(nn.Module):
                 # else , mask[i] = [1,1]
                 # logits = mask dot logits
                 invalid_action_masks = torch.ones_like(logits)
-                for index in range(s.shape[0]):
-                    if s[index][-1] <= 1e-5:
-                        invalid_action_masks[index][-1] = 0
-                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
-                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                if self.cal_ssa is None or self.cal_ssa is None or self.cal_sa is None:
+                    pass
+                    # invalid_action_masks = torch.ones_like(logits)
+                else:
+                    state_discrete_num = self.state_to_int([1, 1, 1]) + 1
+                    epsilon = 0.6
+
+                    for index in range(s.shape[0]):
+                        # index 是指 在s里的多个状态的index顺序
+                        st_index = self.state_to_int(s[index])
+                        #st_index 是指某个状态对应的离散值
+                        for at_index in range(self.action_shape):
+                            c_phi_max = -1
+                            for st_next_index in range(1, state_discrete_num):
+                            # 对所有的后续状态来说
+                                first_identifier = 0
+                                if self.cal_ss[st_index][st_next_index] > 0:
+                                    first_identifier = 1
+                                    p2 = self.cal_ssa[st_index][st_next_index][at_index] / self.cal_ss[st_index][st_next_index]
+                                    logits = F.softmax(logits, dim=-1)
+                                    pi_p = logits[index][at_index].exp().float()
+                                    C_phi = p2 / pi_p - 1
+                                    C_phi = first_identifier * abs(C_phi)
+                                else:
+                                    first_identifier = 0
+                                    C_phi = -1
+
+
+
+
+
+                                if C_phi > c_phi_max:
+                                    c_phi_max = C_phi
+                                    #print("c_phi_max:", c_phi_max)
+                            #分别统计 fuel剩余燃料不同时候的c_phi_average
+                            #print("index",index)
+                            #print("fuel",s[index][-1])
+                            #print("c_phi_max:", c_phi_max)
+                            #统计fuel数与c_phi_max的关系：fuel剩余不同数目时的c_phi_max值
+
+                            self.fuel_C_phi[int(8 * s[index][-1])].append(c_phi_max.item())
+                            fuel_average_C_phi = [np.average(self.fuel_C_phi[i]) for i in range(9)]
+
+                            plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
+                            #plt.legend()
+                            if self.index % 100 == 0:
+                                plt.savefig('D:\zhongdy\\research\\tianshou-master\\tianshou-master\\test\discrete\pic\\fig_{}.jpg'.format(str(self.index)))
+                            self.index += 1
+                            #plt.plot(range(9),fuel_average_C_phi)
+                            plt.close()
+
+
+                            if c_phi_max < epsilon:
+                                #pass
+                                #如果index对应的状态下做at_index的动作无效，加一个mask
+                                invalid_action_masks[index][at_index] = 0
+                    for index in range(s.shape[0]):
+                        #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
+                        if sum(invalid_action_masks[index]) <= 1e-5:
+
+                            invalid_action_masks[index][0] = 1
+                # for index in range(s.shape[0]):
+                #     if s[index][-1] <= 1e-5:
+                #         invalid_action_masks[index][-1] = 0
+                    invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                    logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
                 logits = F.softmax(logits, dim=-1)
             else:
                 logits = F.softmax(logits, dim=-1)
