@@ -138,8 +138,8 @@ class Actor(nn.Module):
 
                             plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
                             #plt.legend()
-                            if self.index % 100 == 0:
-                                plt.savefig('D:\zhongdy\\research\\tianshou-master\\tianshou-master\\test\discrete\pic\\fig_{}.jpg'.format(str(self.index)))
+                            if self.index % 5000 == 0:
+                                plt.savefig('fig_{}.jpg'.format(str(self.index)))
                             self.index += 1
                             #plt.plot(range(9),fuel_average_C_phi)
                             plt.close()
