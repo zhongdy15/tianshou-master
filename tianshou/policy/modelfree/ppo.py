@@ -165,6 +165,8 @@ class PPOPolicy(A2CPolicy):
         self.actor.cal_ssa = self.cal_ssa
         self.actor.cal_sa = self.cal_sa
         self.actor.cal_ss = self.cal_ss
+
+
         C_phi = p2 / pi_p - 1
         fuel = batch["obs"][:, -1]
 

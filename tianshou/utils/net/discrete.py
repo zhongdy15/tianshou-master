@@ -62,13 +62,20 @@ class Actor(nn.Module):
         self.cal_sa = None
         self.fuel_C_phi = [[0.0,] for i in range(9)]
         self.index = 0
+        self.max_lenth = 200
+        self.action_chances = 8
 
     def state_to_int(self,state):
         # 对于离散环境，把状态对应到int值上去
-        max_lenth = 200
-        action_chances = 8
+        max_lenth = self.max_lenth
+        action_chances = self.action_chances
         # state = [0.005,1.,0.875]
         return int(state[0] * max_lenth + state[1] * (max_lenth+1) + state[2] * action_chances * (max_lenth+1) * 2)
+
+    # def fuel_mask(self,state):
+    #     max_lenth = self.max_lenth
+    #     action_chances = self.action_chances
+
 
     def forward(
         self,
@@ -105,7 +112,7 @@ class Actor(nn.Module):
                         st_index = self.state_to_int(s[index])
                         #st_index 是指某个状态对应的离散值
                         for at_index in range(self.action_shape):
-                            c_phi_max = -1
+                            c_phi_max = -1.0
                             for st_next_index in range(1, state_discrete_num):
                             # 对所有的后续状态来说
                                 first_identifier = 0
@@ -115,10 +122,10 @@ class Actor(nn.Module):
                                     logits = F.softmax(logits, dim=-1)
                                     pi_p = logits[index][at_index].exp().float()
                                     C_phi = p2 / pi_p - 1
-                                    C_phi = first_identifier * abs(C_phi)
+                                    C_phi = first_identifier * abs(C_phi.item())
                                 else:
                                     first_identifier = 0
-                                    C_phi = -1
+                                    C_phi = -1.0
 
 
 
@@ -133,7 +140,7 @@ class Actor(nn.Module):
                             #print("c_phi_max:", c_phi_max)
                             #统计fuel数与c_phi_max的关系：fuel剩余不同数目时的c_phi_max值
 
-                            self.fuel_C_phi[int(8 * s[index][-1])].append(c_phi_max.item())
+                            self.fuel_C_phi[int(8 * s[index][-1])].append(c_phi_max)
                             fuel_average_C_phi = [np.average(self.fuel_C_phi[i]) for i in range(9)]
 
                             plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
