@@ -6,7 +6,7 @@ import time
 import torch
 # if not torch.cuda.is_available():
 #     from gym.envs.classic_control import rendering
-
+import copy
 
 class RunningMan(gym.Env):
     metadata = {
@@ -69,6 +69,66 @@ class RunningMan(gym.Env):
         self.challenge_index = None
 
         self.action_penalty = action_penalty
+
+    def copy_as_env(self, old_env):
+        # initial_chances：初始动作次数,
+        # dist_interval=3：有障碍的列间间隔
+        # max_step=50：游戏总长度
+
+        # 总共两个动作
+        self.action_space = old_env.action_space
+        high = np.array(
+            [
+                np.finfo(np.float32).max,
+                np.finfo(np.float32).max,
+                np.finfo(np.float32).max,
+            ],
+            dtype=np.float32,
+        )
+        self.observation_space = old_env.observation_space
+        # 地图的长宽为多少个格点
+        self.length = old_env.length
+        self.height = old_env.height
+        # 每个格子的大小
+        self.size = old_env.size
+        # 目标隔几列出现一次
+        self.dist_interval = old_env.dist_interval
+        # agent初始位置集合
+        # todo:
+        # 列表深度copy
+        self.initial_space = copy.deepcopy(old_env.initial_space)
+
+        self.n_actions = old_env.action_space.n
+
+        # 智能体总共能动多少次
+        self.initial_chances = old_env.initial_chances
+        self.chances = old_env.chances
+        # 状态维度
+        self.states_dim = old_env.states_dim
+        # state:智能体当前的位置
+        self.state = copy.deepcopy(old_env.state)
+        # obs:输入神经网络的状态：【游戏进度,相对位置的x差值，相对位置的y差值，剩余能动字数比例】
+        self.obs = copy.deepcopy(old_env.obs)
+        # 障碍物点的集合
+        self.target = copy.deepcopy(old_env.target)
+        self.viewer = None
+        # 游戏最大长度
+        self.max_step = old_env.max_step
+        # 游戏步数
+        self.counts = old_env.counts
+        # render中用来显示一定范围内的长度
+        self.round = old_env.round
+
+        # 智能体会遇到困难的次数：
+        # self.challenge_time = 1+random.choice(range(initial_chances//2, initial_chances))
+        self.challenge_time = old_env.challengetime
+        # 环境可以放置困难的list:
+        self.target_pos_num = copy.deepcopy(old_env.target_pos_num)
+        self.challenge_index = copy.deepcopy(old_env.challenge_index)
+
+        self.action_penalty = copy.deepcopy(old_env.action_penalty)
+
+
 
     # agent自动巡航
     def patrol(self, old_x, old_y):

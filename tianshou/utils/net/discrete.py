@@ -8,7 +8,7 @@ from torch import nn
 from tianshou.data import Batch
 from tianshou.utils.net.common import MLP
 import matplotlib.pyplot as plt
-
+from tianshou.env import RunningMan
 
 class Actor(nn.Module):
     """Simple actor network.
@@ -62,6 +62,10 @@ class Actor(nn.Module):
         self.cal_sa = None
         self.fuel_C_phi = [[0.0,] for i in range(9)]
         self.index = 0
+        # todo:
+        #
+        self.env_for_singlestepsim = RunningMan()
+        self.target = None
         self.max_lenth = 200
         self.action_chances = 8
 
@@ -89,84 +93,124 @@ class Actor(nn.Module):
         # logits: 也许很多行
         # tensor([[-0.0378, -0.0917],
         #         [-0.0202, -0.1122]])
-
+        invalid_action_masks = torch.ones_like(logits)
         # s:ndarry,和logits行数相同，最后一列是燃料剩余量
         # [[0.11000,0.00000,1.00000],
         # [0.11000,1.00000,1.00000]]
         if self.softmax_output:
             if self.mask:
-                # 针对燃料受限制的问题，把燃料为0的时候的动作全mask掉
-                # s[i,-1] <= 1e-5 时，mask[i]=[1,0]
-                # else , mask[i] = [1,1]
-                # logits = mask dot logits
-                invalid_action_masks = torch.ones_like(logits)
-                if self.cal_ssa is None or self.cal_ssa is None or self.cal_sa is None:
-                    pass
-                    # invalid_action_masks = torch.ones_like(logits)
-                else:
-                    state_discrete_num = self.state_to_int([1, 1, 1]) + 1
-                    epsilon = 0.6
+                # todo:
+                # 依次对s里的每一个状态做处理
+                # 如果s里的info_list 是空{}，那么就直接返回logits的值
+                # 反之，如果infolist里带有原环境的信息，就重建环境，然后单步仿真
 
-                    for index in range(s.shape[0]):
-                        # index 是指 在s里的多个状态的index顺序
-                        st_index = self.state_to_int(s[index])
-                        #st_index 是指某个状态对应的离散值
-                        for at_index in range(self.action_shape):
-                            c_phi_max = -1.0
-                            for st_next_index in range(1, state_discrete_num):
-                            # 对所有的后续状态来说
-                                first_identifier = 0
-                                if self.cal_ss[st_index][st_next_index] > 0:
-                                    first_identifier = 1
-                                    p2 = self.cal_ssa[st_index][st_next_index][at_index] / self.cal_ss[st_index][st_next_index]
-                                    logits = F.softmax(logits, dim=-1)
-                                    pi_p = logits[index][at_index].exp().float()
-                                    C_phi = p2 / pi_p - 1
-                                    C_phi = first_identifier * abs(C_phi.item())
-                                else:
-                                    first_identifier = 0
-                                    C_phi = -1.0
+                # 给定的状态，按照不同的动作单步仿真，如果结果相同，就mask成为一个动作
+                # 构建一个环境，遍历一遍动作，如果下个状态完全一致，就不执行了。
+                for index in range(len(s)):
+                    if len(info.shape) == 0 :
+                        break
+                    dist_samples = 1
+                    # print(info)
+                    # print(info[index])
+                    temp_env = RunningMan()
+                    temp_env.copy_as_infolist(info[index])
 
+                    state_next = [[] for _ in range(temp_env.n_actions)]
+                    # state_next有n_actions个列表，每个列表记录了每个动作对应的后一个状态
+                    for ii in range(temp_env.n_actions):
+                        for _ in range(dist_samples):
+                            # todo:
+                            # 仿真一步，以后可以改成多步
+                            temp_env = RunningMan()
+                            temp_env.copy_as_infolist(info[index])
+                            obs, reward, done, _ = temp_env.step(ii)
+                            state_next[ii].append(obs)
+                    #仅使用状态的值是否相同来判定动作是否应该被mask
+                    # todo:
+                    # 找到结果相同的状态对应的动作，只执行其中的第一个动作，其他全部概率压到0
 
+                    if (state_next[0][0] == state_next[1][0]).all():
+                        # 只比较两个动作的后一个状态集合的第一个元素【因为只做了一次实验】
+                        # 如果相同的话，就mask后一个
+                        invalid_action_masks[index][-1] = 0
+                    # print(" action nonsense")
+                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
 
-
-
-                                if C_phi > c_phi_max:
-                                    c_phi_max = C_phi
-                                    #print("c_phi_max:", c_phi_max)
-                            #分别统计 fuel剩余燃料不同时候的c_phi_average
-                            #print("index",index)
-                            #print("fuel",s[index][-1])
-                            #print("c_phi_max:", c_phi_max)
-                            #统计fuel数与c_phi_max的关系：fuel剩余不同数目时的c_phi_max值
-
-                            self.fuel_C_phi[int(8 * s[index][-1])].append(c_phi_max)
-                            fuel_average_C_phi = [np.average(self.fuel_C_phi[i]) for i in range(9)]
-
-                            plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
-                            #plt.legend()
-                            if self.index % 5000 == 0:
-                                plt.savefig('fig_{}.jpg'.format(str(self.index)))
-                            self.index += 1
-                            #plt.plot(range(9),fuel_average_C_phi)
-                            plt.close()
-
-
-                            if c_phi_max < epsilon:
-                                #pass
-                                #如果index对应的状态下做at_index的动作无效，加一个mask
-                                invalid_action_masks[index][at_index] = 0
-                    for index in range(s.shape[0]):
-                        #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
-                        if sum(invalid_action_masks[index]) <= 1e-5:
-
-                            invalid_action_masks[index][0] = 1
-                # for index in range(s.shape[0]):
-                #     if s[index][-1] <= 1e-5:
-                #         invalid_action_masks[index][-1] = 0
-                    invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
-                    logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
                 logits = F.softmax(logits, dim=-1)
+
+                # # 针对燃料受限制的问题，把燃料为0的时候的动作全mask掉
+                # # s[i,-1] <= 1e-5 时，mask[i]=[1,0]
+                # # else , mask[i] = [1,1]
+                # # logits = mask dot logits
+                # invalid_action_masks = torch.ones_like(logits)
+                # if self.cal_ssa is None or self.cal_ssa is None or self.cal_sa is None:
+                #     pass
+                #     # invalid_action_masks = torch.ones_like(logits)
+                # else:
+                #     state_discrete_num = self.state_to_int([1, 1, 1]) + 1
+                #     epsilon = 0.6
+                #
+                #     for index in range(s.shape[0]):
+                #         # index 是指 在s里的多个状态的index顺序
+                #         st_index = self.state_to_int(s[index])
+                #         #st_index 是指某个状态对应的离散值
+                #         for at_index in range(self.action_shape):
+                #             c_phi_max = -1.0
+                #             for st_next_index in range(1, state_discrete_num):
+                #             # 对所有的后续状态来说
+                #                 first_identifier = 0
+                #                 if self.cal_ss[st_index][st_next_index] > 0:
+                #                     first_identifier = 1
+                #                     p2 = self.cal_ssa[st_index][st_next_index][at_index] / self.cal_ss[st_index][st_next_index]
+                #                     logits = F.softmax(logits, dim=-1)
+                #                     pi_p = logits[index][at_index].exp().float()
+                #                     C_phi = p2 / pi_p - 1
+                #                     C_phi = first_identifier * abs(C_phi.item())
+                #                 else:
+                #                     first_identifier = 0
+                #                     C_phi = -1.0
+                #
+                #
+                #
+                #
+                #
+                #                 if C_phi > c_phi_max:
+                #                     c_phi_max = C_phi
+                #                     #print("c_phi_max:", c_phi_max)
+                #             #分别统计 fuel剩余燃料不同时候的c_phi_average
+                #             #print("index",index)
+                #             #print("fuel",s[index][-1])
+                #             #print("c_phi_max:", c_phi_max)
+                #             #统计fuel数与c_phi_max的关系：fuel剩余不同数目时的c_phi_max值
+                #
+                #             self.fuel_C_phi[int(8 * s[index][-1])].append(c_phi_max)
+                #             fuel_average_C_phi = [np.average(self.fuel_C_phi[i]) for i in range(9)]
+                #
+                #             plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
+                #             #plt.legend()
+                #             if self.index % 5000 == 0:
+                #                 plt.savefig('fig_{}.jpg'.format(str(self.index)))
+                #             self.index += 1
+                #             #plt.plot(range(9),fuel_average_C_phi)
+                #             plt.close()
+                #
+                #
+                #             if c_phi_max < epsilon:
+                #                 #pass
+                #                 #如果index对应的状态下做at_index的动作无效，加一个mask
+                #                 invalid_action_masks[index][at_index] = 0
+                #     for index in range(s.shape[0]):
+                #         #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
+                #         if sum(invalid_action_masks[index]) <= 1e-5:
+                #
+                #             invalid_action_masks[index][0] = 1
+                # # for index in range(s.shape[0]):
+                # #     if s[index][-1] <= 1e-5:
+                # #         invalid_action_masks[index][-1] = 0
+                #     invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                #     logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                # logits = F.softmax(logits, dim=-1)
             else:
                 logits = F.softmax(logits, dim=-1)
         return logits, h

@@ -17,7 +17,7 @@ from tianshou.data import (
 from tianshou.data.batch import _alloc_by_keys_diff
 from tianshou.env import BaseVectorEnv, DummyVectorEnv
 from tianshou.policy import BasePolicy
-
+from tianshou.env import RunningMan
 
 class Collector(object):
     """Collector enables the policy to interact with different types of envs with \
@@ -204,6 +204,17 @@ class Collector(object):
         episode_start_indices = []
 
         while True:
+            # 2022/03/09 by zhongdy
+            # 在这里可以每一步都向actor传递环境的信息
+            # 环境里可以通过环境的信息做单步仿真
+            # todo:
+            # 每一步同步一次单步长环境
+            # self.policy.actor.env_for_singlestepsim =
+            self.policy.actor.target = self.env.workers[0].env.target
+            self.policy.actor.max_lenth = self.env.workers[0].env.max_step
+            self.policy.actor.action_chances = self.env.workers[0].env.initial_chances
+            self.policy.actor.env_for_singlestepsim.copy_as_env(self.env.workers[0].env)
+
             assert len(self.data) == len(ready_env_ids)
             # restore the state: if the last state is None, it won't store
             last_state = self.data.policy.pop("hidden_state", None)
@@ -214,6 +225,7 @@ class Collector(object):
                     act=[self._action_space[i].sample() for i in ready_env_ids]
                 )
             else:
+
                 if no_grad:
                     with torch.no_grad():  # faster than retain_grad version
                         # self.data.obs will be used by agent to get result

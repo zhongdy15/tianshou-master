@@ -22,7 +22,8 @@ from tianshou.utils import TensorboardLogger
 from tianshou.utils.net.common import ActorCritic, DataParallelNet, Net
 from tianshou.utils.net.discrete import Actor, Critic
 
-from minessweeper import RunningMan
+from tianshou.env import RunningMan
+#from minessweeper import RunningMan
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -89,7 +90,7 @@ def env_make(task, args=get_args()):
 def test_ppo(args=get_args()):
     env = env_make(args.task)
 
-    # args.mask = True
+    args.mask = True
 
     # print("88")
     # print(args.mask)
