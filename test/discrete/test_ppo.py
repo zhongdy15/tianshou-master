@@ -6,6 +6,7 @@ import gym
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
+torch.set_num_threads(16)
 import sys
 package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 # print(package)
@@ -24,6 +25,7 @@ from tianshou.utils.net.discrete import Actor, Critic
 
 from tianshou.env import RunningMan
 #from minessweeper import RunningMan
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -90,7 +92,7 @@ def env_make(task, args=get_args()):
 def test_ppo(args=get_args()):
     env = env_make(args.task)
 
-    args.mask = True
+    # args.mask = True
 
     # print("88")
     # print(args.mask)
