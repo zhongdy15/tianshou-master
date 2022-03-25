@@ -296,6 +296,7 @@ class RunningMan(gym.Env):
             next_state = [x, y]
             self.state = next_state
         else:
+            # 如果下一个状态不安全的话，如果采取了操作1，就会继续往前走
             if real_action == 1:
                 # 自动向前走
                 x, y = self.state
@@ -303,8 +304,19 @@ class RunningMan(gym.Env):
                 next_state = [x, y]
                 self.state = next_state
             else:
-                done = True
-                reward = -100
+                # 否则，就会以概率p结束游戏
+                p = 0.8
+                rand_float = random.random()
+                if rand_float < p:
+                    done = True
+                    reward = -100
+                else:
+                    # 自动向前走
+                    x, y = self.state
+                    x, y = self.patrol(x, y)
+                    next_state = [x, y]
+                    self.state = next_state
+
 
         if x > self.max_step:
             done = True
@@ -443,7 +455,7 @@ if __name__ == '__main__':
     action = 0
     maual_flag =True
     reward_list = []
-    print("test")
+    # print("test")
     # 执行oracle策略
     for epoch in range(20):
         total_reward = 0
