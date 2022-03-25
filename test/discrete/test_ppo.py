@@ -40,8 +40,8 @@ def get_args():
     parser.add_argument('--repeat-per-collect', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=64)
     parser.add_argument('--hidden-sizes', type=int, nargs='*', default=[64, 64])
-    parser.add_argument('--training-num', type=int, default=1)
-    parser.add_argument('--test-num', type=int, default=1)
+    parser.add_argument('--training-num', type=int, default=4)
+    parser.add_argument('--test-num', type=int, default=4)
     parser.add_argument('--logdir', type=str, default='log')
     parser.add_argument('--render', type=float, default=0.)
     parser.add_argument(
@@ -77,11 +77,15 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
+    # args.mask = True
+    # args.max_lenth = 1600
     return args
 
 
 def env_make(task, args=get_args()):
     if task == "RunningShooter":
+        # print(args.mask)
+        # print(args.max_lenth)
         env = RunningMan(initial_chances=args.initial_chances, dist_interval=args.dist_interval,
                          max_step=args.max_lenth, action_penalty=args.action_penalty)
     else:
@@ -90,23 +94,24 @@ def env_make(task, args=get_args()):
 
 
 def test_ppo(args=get_args()):
-    env = env_make(args.task)
 
-    # args.mask = True
+    env = env_make(args.task, args=args)
+
+
 
     # print("88")
     # print(args.mask)
     args.state_shape = env.observation_space.shape or env.observation_space.n
     args.action_shape = env.action_space.shape or env.action_space.n
-    train_envs = env_make(args.task)
+    # train_envs = env_make(args.task)
     # you can also use tianshou.env.SubprocVectorEnv
-    # train_envs = SubprocVectorEnv(
-    #     [lambda: env_make(args.task) for _ in range(args.training_num)]
-    # )
-    test_envs = env_make(args.task)
-    # test_envs = SubprocVectorEnv(
-    #     [lambda: env_make(args.task) for _ in range(args.test_num)]
-    # )
+    train_envs = SubprocVectorEnv(
+        [lambda: env_make(args.task) for _ in range(args.training_num)]
+    )
+    # test_envs = env_make(args.task)
+    test_envs = SubprocVectorEnv(
+        [lambda: env_make(args.task) for _ in range(args.test_num)]
+    )
     # seed
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -155,7 +160,7 @@ def test_ppo(args=get_args()):
     )
     # collector
     train_collector = Collector(
-        policy, train_envs, VectorReplayBuffer(args.buffer_size, 1)
+        policy, train_envs, VectorReplayBuffer(args.buffer_size, args.training_num)
     )
     test_collector = Collector(policy, test_envs)
     # # log

@@ -210,10 +210,10 @@ class Collector(object):
             # todo:
             # 每一步同步一次单步长环境
             # self.policy.actor.env_for_singlestepsim =
-            self.policy.actor.target = self.env.workers[0].env.target
-            self.policy.actor.max_lenth = self.env.workers[0].env.max_step
-            self.policy.actor.action_chances = self.env.workers[0].env.initial_chances
-            self.policy.actor.env_for_singlestepsim.copy_as_env(self.env.workers[0].env)
+            # self.policy.actor.target = self.env.workers[0].env.target
+            # self.policy.actor.max_lenth = self.env.workers[0].env.max_step
+            # self.policy.actor.action_chances = self.env.workers[0].env.initial_chances
+            # self.policy.actor.env_for_singlestepsim.copy_as_env(self.env.workers[0].env)
 
             assert len(self.data) == len(ready_env_ids)
             # restore the state: if the last state is None, it won't store

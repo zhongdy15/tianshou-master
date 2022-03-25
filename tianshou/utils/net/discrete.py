@@ -94,6 +94,7 @@ class Actor(nn.Module):
         # tensor([[-0.0378, -0.0917],
         #         [-0.0202, -0.1122]])
         invalid_action_masks = torch.ones_like(logits)
+        # print(logits.shape)
         # s:ndarry,和logits行数相同，最后一列是燃料剩余量
         # [[0.11000,0.00000,1.00000],
         # [0.11000,1.00000,1.00000]]
