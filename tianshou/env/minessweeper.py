@@ -4,8 +4,8 @@ from gym import spaces
 import numpy as np
 import time
 import torch
-# if not torch.cuda.is_available():
-#     from gym.envs.classic_control import rendering
+if not torch.cuda.is_available():
+    from gym.envs.classic_control import rendering
 import copy
 
 class RunningMan(gym.Env):
@@ -46,7 +46,7 @@ class RunningMan(gym.Env):
         self.initial_chances = initial_chances
         self.chances = None
         # 状态维度
-        self.states_dim = 3
+        self.states_dim = 4
         # state:智能体当前的位置
         self.state = None
         # obs:输入神经网络的状态：【游戏进度,相对位置的x差值，相对位置的y差值，剩余能动字数比例】
@@ -60,6 +60,8 @@ class RunningMan(gym.Env):
         self.counts = 0
         # render中用来显示一定范围内的长度
         self.round = 0
+        # 玩家生命值
+        self.life = 1
 
         # 智能体会遇到困难的次数：
         # self.challenge_time = 1+random.choice(range(initial_chances//2, initial_chances))
@@ -119,6 +121,8 @@ class RunningMan(gym.Env):
         # render中用来显示一定范围内的长度
         self.round = old_env.round
 
+        # 玩家生命值
+        self.life = old_env.life
         # 智能体会遇到困难的次数：
         # self.challenge_time = 1+random.choice(range(initial_chances//2, initial_chances))
         self.challenge_time = old_env.challenge_time
@@ -163,6 +167,7 @@ class RunningMan(gym.Env):
         # render中用来显示一定范围内的长度
         info['round'] = self.round
 
+        info['life'] = self.life
         # 智能体会遇到困难的次数：
         # self.challenge_time = 1+random.choice(range(initial_chances//2, initial_chances))
         info['challenge_time'] = self.challenge_time
@@ -211,7 +216,7 @@ class RunningMan(gym.Env):
         self.counts = info['counts']
         # render中用来显示一定范围内的长度
         self.round = info['round']
-
+        self.life = info['life']
         # 智能体会遇到困难的次数：
         # self.challenge_time = 1+random.choice(range(initial_chances//2, initial_chances))
         self.challenge_time = info['challenge_time']
@@ -309,6 +314,7 @@ class RunningMan(gym.Env):
                 rand_float = random.random()
                 if rand_float < p:
                     done = True
+                    self.life = 0
                     reward = -100
                 else:
                     # 自动向前走
@@ -353,7 +359,7 @@ class RunningMan(gym.Env):
         else:
             done = True
         # 返回的是，当前到哪了，下一个位置是不是安全，剩余次数的比例
-        return np.array([x / self.max_step, self.is_safe(x+1),
+        return np.array([x / self.max_step, self.life, self.is_safe(x+1),
                         self.chances / self.initial_chances]), done
 
 
@@ -365,6 +371,7 @@ class RunningMan(gym.Env):
             self.state = start_state
         self.counts = 0
         self.round = 0
+        self.life = 1
 
         x = 1
         while x < self.max_step:
