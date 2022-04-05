@@ -165,7 +165,12 @@ def onpolicy_trainer(
                     batch_size=batch_size,
                     repeat=repeat_per_collect
                 )
+                # for test
+                file_name = "data_collect\\"+time.strftime("%Y%m%d%H%M%S")+".hdf5"
+                train_collector.buffer.save_hdf5(file_name)
                 train_collector.reset_buffer(keep_statistics=True)
+
+
                 step = max(
                     [1] + [len(v) for v in losses.values() if isinstance(v, list)]
                 )

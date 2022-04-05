@@ -15,7 +15,7 @@ sys.path.insert(0, package)
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
-from tianshou.data import Collector, VectorReplayBuffer
+from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 from tianshou.env import SubprocVectorEnv
 from tianshou.policy import PPOPolicy
 from tianshou.trainer import onpolicy_trainer
@@ -162,6 +162,7 @@ def test_ppo(args=get_args()):
     train_collector = Collector(
         policy, train_envs, VectorReplayBuffer(args.buffer_size, args.training_num)
     )
+    load_buffer = ReplayBuffer.load_hdf5("data_collect\\20220405194952.hdf5")
     test_collector = Collector(policy, test_envs)
     # # log
     # print(args.mask)

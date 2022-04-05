@@ -110,7 +110,7 @@ class Actor(nn.Module):
                 for index in range(len(s)):
                     if len(info.shape) == 0 :
                         break
-                    dist_samples = 1
+                    dist_samples = 10
                     # print(info)
                     # print(info[index])
                     temp_env = RunningMan()
@@ -127,10 +127,15 @@ class Actor(nn.Module):
                             obs, reward, done, _ = temp_env.step(ii)
                             state_next[ii].append(obs)
                     #仅使用状态的值是否相同来判定动作是否应该被mask
-                    # todo:
                     # 找到结果相同的状态对应的动作，只执行其中的第一个动作，其他全部概率压到0
-
-                    if (state_next[0][0] == state_next[1][0]).all():
+                    # todo：
+                    # 用分布的衡量评判两个动作之后的状态是否一致
+                    m = np.array(state_next)
+                    mean1 = np.sum(m[0], axis=0) / len(m[0])
+                    # std1 = np.std(state_next[0])
+                    mean2 = np.sum(m[1], axis=0) / len(m[1  ])
+                    # std2 = np.std(state_next[1])
+                    if (abs(mean1-mean2) < 0.08).all():#(state_next[0][0] == state_next[1][0]).all():
                         # 只比较两个动作的后一个状态集合的第一个元素【因为只做了一次实验】
                         # 如果相同的话，就mask后一个
                         invalid_action_masks[index][-1] = 0
