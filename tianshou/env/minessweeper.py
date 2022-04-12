@@ -26,6 +26,7 @@ class RunningMan(gym.Env):
                 np.finfo(np.float32).max,
                 np.finfo(np.float32).max,
                 np.finfo(np.float32).max,
+                np.finfo(np.float32).max,
             ],
             dtype=np.float32,
         )

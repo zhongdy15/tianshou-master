@@ -166,9 +166,9 @@ def onpolicy_trainer(
                     repeat=repeat_per_collect
                 )
                 # for test
-                file_name = "data_collect\\"+time.strftime("%Y%m%d%H%M%S")+".hdf5"
-                train_collector.buffer.save_hdf5(file_name)
-                train_collector.reset_buffer(keep_statistics=True)
+                # file_name = "data_collect\\"+time.strftime("%Y%m%d%H%M%S")+".hdf5"
+                # train_collector.buffer.save_hdf5(file_name)
+                # train_collector.reset_buffer(keep_statistics=True)
 
 
                 step = max(

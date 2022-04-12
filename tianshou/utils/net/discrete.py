@@ -76,6 +76,8 @@ class Actor(nn.Module):
         # state = [0.005,1.,0.875]
         return int(state[0] * max_lenth + state[1] * (max_lenth+1) + state[2] * action_chances * (max_lenth+1) * 2)
 
+
+
     # def fuel_mask(self,state):
     #     max_lenth = self.max_lenth
     #     action_chances = self.action_chances
@@ -93,6 +95,7 @@ class Actor(nn.Module):
         # logits: 也许很多行
         # tensor([[-0.0378, -0.0917],
         #         [-0.0202, -0.1122]])
+        logits = F.softmax(logits, dim=-1)
         invalid_action_masks = torch.ones_like(logits)
         # print(logits.shape)
         # s:ndarry,和logits行数相同，最后一列是燃料剩余量
@@ -116,30 +119,50 @@ class Actor(nn.Module):
                     temp_env = RunningMan()
                     temp_env.copy_as_infolist(info[index])
 
-                    state_next = [[] for _ in range(temp_env.n_actions)]
+                    # todo:
+                    # 2022/04/06 利用相关性判据来判断特定状态下采样的动作与下一个状态是否独立
+                    # 维护两个列表，一个保存动作，另一个保存下一个状态
+                    # 再利用两个列表的数据计算相关性因子（0-1）
+                    # 如果相关性因子小于特定阈值，开始屏蔽
+                    # 先不屏蔽，暂时评判屏蔽机制与fuel剩余量的关系
+
+                    state_next = []
+                    act_next = torch.randint(0, temp_env.n_actions, [dist_samples, 1])
                     # state_next有n_actions个列表，每个列表记录了每个动作对应的后一个状态
-                    for ii in range(temp_env.n_actions):
-                        for _ in range(dist_samples):
-                            # todo:
-                            # 仿真一步，以后可以改成多步
-                            temp_env = RunningMan()
-                            temp_env.copy_as_infolist(info[index])
-                            obs, reward, done, _ = temp_env.step(ii)
-                            state_next[ii].append(obs)
+
+                    for ii in range(dist_samples):
+                        temp_env = RunningMan()
+                        temp_env.copy_as_infolist(info[index])
+                        act_test = act_next[ii]
+                        obs, reward, done, _ = temp_env.step(act_test)
+                        state_next.append(obs)
                     #仅使用状态的值是否相同来判定动作是否应该被mask
                     # 找到结果相同的状态对应的动作，只执行其中的第一个动作，其他全部概率压到0
                     # todo：
                     # 用分布的衡量评判两个动作之后的状态是否一致
-                    m = np.array(state_next)
-                    mean1 = np.sum(m[0], axis=0) / len(m[0])
-                    # std1 = np.std(state_next[0])
-                    mean2 = np.sum(m[1], axis=0) / len(m[1  ])
-                    # std2 = np.std(state_next[1])
-                    if (abs(mean1-mean2) < 0.08).all():#(state_next[0][0] == state_next[1][0]).all():
+                    state_next = np.array(state_next)
+                    act_next = act_next.numpy()
+
+                    # 比较两个numpy数组的相关性
+                    r = correlation_dist(state_next, act_next)
+                    # 统计fuel数与c_phi_max的关系：fuel剩余不同数目时的c_phi_max值
+
+                    self.fuel_C_phi[int(8 * s[index][-1])].append(r)
+                    fuel_average_C_phi = [np.average(self.fuel_C_phi[i]) for i in range(9)]
+
+                    plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
+                    # plt.legend()
+                    if self.index % 100 == 0:
+                        plt.savefig('D:\\zhongdy\\research\\tianshou-master\\tianshou-master\\tianshou\\utils\\net\\fig_r\\fig_{}.jpg'.format(str(self.index)))
+                    self.index += 1
+                    plt.close()
+
+                    if r < 0.4:#(state_next[0][0] == state_next[1][0]).all():
                         # 只比较两个动作的后一个状态集合的第一个元素【因为只做了一次实验】
                         # 如果相同的话，就mask后一个
                         invalid_action_masks[index][-1] = 0
                     # print(" action nonsense")
+
                 invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
 
@@ -536,3 +559,34 @@ def sample_noise(model: nn.Module) -> bool:
             m.sample()
             done = True
     return done
+
+def correlation_dist(v1, v2):
+    A_v1 = cal_A(v1)
+    A_v2 = cal_A(v2)
+
+    X_dot_Y = A_v1 * A_v2
+    X_dot_X = A_v1 * A_v1
+    Y_dot_Y = A_v2 * A_v2
+
+    if np.sqrt(np.mean(X_dot_X) * np.mean(Y_dot_Y)) <= 1e-7:
+        r = 0
+    else:
+        r = np.mean(X_dot_Y) / np.sqrt(np.mean(X_dot_X) *np.mean(Y_dot_Y))
+
+    return r
+def cal_A(v):
+    # num为数据的条数，p是数据的维度
+    [num, p] = v.shape
+    matrix_v = np.zeros([num, num])
+    for i in range(num):
+        for j in range(i, num):
+            delta = v[i] - v[j]
+            matrix_v[i][j] = np.linalg.norm(delta, ord=p)
+            matrix_v[j][i] = matrix_v[i][j]
+    row_mean = np.mean(matrix_v, axis=1)
+    row_mean = np.repeat(np.expand_dims(row_mean, axis=1), num, axis=1)
+    col_mean = np.mean(matrix_v, axis=0)
+    col_mean = np.repeat(np.expand_dims(col_mean, axis=0), num, axis=0)
+    total_mean = np.mean(matrix_v)
+    A_v1 = matrix_v - row_mean - col_mean + total_mean
+    return  A_v1

@@ -77,7 +77,7 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
-    # args.mask = True
+    args.mask = True
     # args.max_lenth = 1600
     return args
 
@@ -162,7 +162,7 @@ def test_ppo(args=get_args()):
     train_collector = Collector(
         policy, train_envs, VectorReplayBuffer(args.buffer_size, args.training_num)
     )
-    load_buffer = ReplayBuffer.load_hdf5("data_collect\\20220405194952.hdf5")
+    #load_buffer = ReplayBuffer.load_hdf5("data_collect\\20220405194952.hdf5")
     test_collector = Collector(policy, test_envs)
     # # log
     # print(args.mask)
