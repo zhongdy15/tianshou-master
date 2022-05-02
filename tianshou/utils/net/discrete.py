@@ -99,6 +99,7 @@ class Actor(nn.Module):
         #         [-0.0202, -0.1122]])
         logits = F.softmax(logits, dim=-1)
         invalid_action_masks = torch.ones_like(logits)
+        r = 0.4
         # print(logits.shape)
         # s:ndarry,和logits行数相同，最后一列是燃料剩余量
         # [[0.11000,0.00000,1.00000],
@@ -112,9 +113,8 @@ class Actor(nn.Module):
                 # 软mask掉动作
                 # ---todo in 05/02---
                 if self.mask_model:
-                    Mask_value = torch.ones_like(logits)
-
-
+                    Mask_value = self.mask_model(s)
+                    invalid_action_masks = torch.where(Mask_value < r, torch.zeros_like(logits), torch.ones_like(logits))
                 else:
                     invalid_action_masks = torch.ones_like(logits)
 

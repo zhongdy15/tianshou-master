@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Type
 import numpy as np
 import torch
 from torch import nn
-
+import copy
 from tianshou.data import Batch, ReplayBuffer, to_torch_as
 from tianshou.policy import A2CPolicy
 from tianshou.utils.net.common import ActorCritic
@@ -144,7 +144,7 @@ class MaskPPOPolicy(A2CPolicy):
 
         #固定策略训练mask、固定mask训练策略、交替训练
         #---todo in 4/28---
-        self.learn_index += 1
+
         # 每40个回合执行如下操作：
         # 前20个回合训练MASK、策略pi不变、mask=NONE：
         # 前10个回合只训练inverse model
@@ -152,9 +152,9 @@ class MaskPPOPolicy(A2CPolicy):
         # 第20个回合替换原有的mask为新的mask，mask从None变成模型
         # 后20个回合只训练pi，mask不变：
         # 保持新的mask，不再变化，仅训练策略
-        total_update_interval = 8 #40
-        mask_update_start = 2 #10
-        policy_update_start = 4 #20
+        total_update_interval = 1e10
+        mask_update_start = float('inf') #25
+        policy_update_start = float('inf') #35
 
 
 
@@ -182,7 +182,7 @@ class MaskPPOPolicy(A2CPolicy):
             print("learn_inv_inex:" + str(self.learn_index) + " inv_loss" + str(inv_loss.item()))
 
 
-        if policy_update_start > self.learn_index % total_update_interval > mask_update_start:
+        if policy_update_start > self.learn_index % total_update_interval >= mask_update_start:
             #更新mask
             epsilon = 1e-5
 
@@ -193,18 +193,22 @@ class MaskPPOPolicy(A2CPolicy):
                     #学习mask(s,a),并且查看流程训练的步骤
                     #---todo in 04/29---
                     ss = np.concatenate((b.obs, b.obs_next), axis=1)
-                    sa = np.concatenate((b.obs, b.act.unsqueeze(1)), axis=1)
+                    # sa = np.concatenate((b.obs, b.act.unsqueeze(1)), axis=1)
+                    action_one_hot = nn.functional.one_hot(b.act.long(), self.actor.action_shape).bool()
 
-                    mask_pred = self.mask_model(sa)[0]
+                    mask_pred_all_action = self.mask_model(b.obs)[0]
+                    mask_pred_current_action = torch.masked_select(mask_pred_all_action,action_one_hot)
 
                     dist = self(b).dist
                     target_log_pia = dist.log_prob(b.act)
-                    pi_a = self.inv_model(ss)[0]
-                    action_one_hot = nn.functional.one_hot(b.act.long(), self.actor.action_shape).bool()
+                    with torch.no_grad():
+                        # 从inv_model里面无梯度地取值用来训练mask
+                        pi_a = self.inv_model(ss)[0]
+
                     pred_pi_act = torch.masked_select(pi_a, action_one_hot)
                     indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
 
-                    mask_loss = (mask_pred - indepence_factor).pow(2).mean()
+                    mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
                     self.mask_optim.zero_grad()
                     mask_loss.backward()
                     self.mask_optim.step()
@@ -214,7 +218,7 @@ class MaskPPOPolicy(A2CPolicy):
 
         # 更新策略=更新pi+更新mask
         # 每40个回合里的后20个回合更新一次策略
-        if self.learn_index % total_update_interval >  policy_update_start:
+        if self.learn_index % total_update_interval >=  policy_update_start:
             # 更新mask
             self.actor.mask_model = copy.deepcopy(self.mask_model)
             for step in range(repeat):
@@ -266,6 +270,7 @@ class MaskPPOPolicy(A2CPolicy):
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
+        self.learn_index += 1
 
         return {
             "loss": losses,

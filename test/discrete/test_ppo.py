@@ -78,7 +78,8 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
-    # args.mask = True
+    args.mask = True
+    args.epoch = 200
     # args.max_lenth = 1600
     return args
 
@@ -126,7 +127,8 @@ def test_ppo(args=get_args()):
     inv_model = Net(state_num*2, action_num, hidden_sizes=args.hidden_sizes, device=args.device, softmax=True)
     # M(s,a) model: independence factor for mask
     # action : 1维两个选择
-    mask_model = Net(state_num+1, 1, hidden_sizes=args.hidden_sizes, device=args.device)
+    # mask model输出s下每个a的因子
+    mask_model = Net(state_num, action_num, hidden_sizes=args.hidden_sizes, device=args.device)
 
     net = Net(args.state_shape, hidden_sizes=args.hidden_sizes, device=args.device)
     if torch.cuda.is_available():
@@ -148,8 +150,8 @@ def test_ppo(args=get_args()):
             torch.nn.init.orthogonal_(m.weight)
             torch.nn.init.zeros_(m.bias)
     optim = torch.optim.Adam(actor_critic.parameters(), lr=args.lr)
-    inv_optim = torch.optim.SGD(inv_model.parameters(), lr=args.lr)
-    mask_optim = torch.optim.SGD(mask_model.parameters(), lr=args.lr)
+    inv_optim = torch.optim.Adam(inv_model.parameters(), lr=args.lr)
+    mask_optim = torch.optim.Adam(mask_model.parameters(), lr=args.lr)
 
     dist = torch.distributions.Categorical
     policy = MaskPPOPolicy(
