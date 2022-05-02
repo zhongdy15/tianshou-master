@@ -56,8 +56,6 @@ class Actor(nn.Module):
         input_dim = getattr(preprocess_net, "output_dim", preprocess_net_output_dim)
         self.last = MLP(input_dim, self.output_dim, hidden_sizes, device=self.device)
         self.softmax_output = softmax_output
-
-        self.mask_model = None
         self.mask = mask
         self.cal_ss = None
         self.cal_ssa = None
@@ -105,18 +103,65 @@ class Actor(nn.Module):
         # [0.11000,1.00000,1.00000]]
         if self.softmax_output:
             if self.mask:
-                # ---todo in 05/02---
-                # 根据已有的mask_model,算出M(s,a)
-                # 判断M(s,a)和fuel的关系
-                # 根据mask_model算出来的值，硬mask掉动作
-                # 软mask掉动作
-                # ---todo in 05/02---
-                if self.mask_model:
-                    Mask_value = torch.ones_like(logits)
+                # todo:
+                # 依次对s里的每一个状态做处理
+                # 如果s里的info_list 是空{}，那么就直接返回logits的值
+                # 反之，如果infolist里带有原环境的信息，就重建环境，然后单步仿真
 
+                # 给定的状态，按照不同的动作单步仿真，如果结果相同，就mask成为一个动作
+                # 构建一个环境，遍历一遍动作，如果下个状态完全一致，就不执行了。
+                for index in range(len(s)):
+                    if len(info.shape) == 0 :
+                        break
+                    dist_samples = 10
+                    # print(info)
+                    # print(info[index])discrete.py
+                    temp_env = RunningMan()
+                    temp_env.copy_as_infolist(info[index])
 
-                else:
-                    invalid_action_masks = torch.ones_like(logits)
+                    # todo:
+                    # 2022/04/06 利用相关性判据来判断特定状态下采样的动作与下一个状态是否独立
+                    # 维护两个列表，一个保存动作，另一个保存下一个状态
+                    # 再利用两个列表的数据计算相关性因子（0-1）
+                    # 如果相关性因子小于特定阈值，开始屏蔽
+                    # 先不屏蔽，暂时评判屏蔽机制与fuel剩余量的关系
+
+                    state_next = []
+                    act_next = torch.randint(0, temp_env.n_actions, [dist_samples, 1])
+                    # state_next有n_actions个列表，每个列表记录了每个动作对应的后一个状态
+
+                    for ii in range(dist_samples):
+                        temp_env = RunningMan()
+                        temp_env.copy_as_infolist(info[index])
+                        act_test = act_next[ii]
+                        obs, reward, done, _ = temp_env.step(act_test)
+                        state_next.append(obs)
+                    #仅使用状态的值是否相同来判定动作是否应该被mask
+                    # 找到结果相同的状态对应的动作，只执行其中的第一个动作，其他全部概率压到0
+                    # todo：
+                    # 用分布的衡量评判两个动作之后的状态是否一致
+                    state_next = np.array(state_next)
+                    act_next = act_next.numpy()
+
+                    # 比较两个numpy数组的相关性
+                    r = correlation_dist(state_next, act_next)
+                    # 统计fuel数与c_phi_max的关系：fuel剩余不同数目时的c_phi_max值
+
+                    self.fuel_C_phi[int(8 * s[index][-1])].append(r)
+                    fuel_average_C_phi = [np.average(self.fuel_C_phi[i]) for i in range(9)]
+
+                    plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
+                    # plt.legend()
+                    if self.index % 100 == 0:
+                        plt.savefig('D:\\zhongdy\\research\\tianshou-master\\tianshou-master\\tianshou\\utils\\net\\fig_r\\fig_{}.jpg'.format(str(self.index)))
+                    self.index += 1
+                    plt.close()
+
+                    if r < 0.4:#(state_next[0][0] == state_next[1][0]).all():
+                        # 只比较两个动作的后一个状态集合的第一个元素【因为只做了一次实验】
+                        # 如果相同的话，就mask后一个
+                        invalid_action_masks[index][-1] = 0
+                    # print(" action nonsense")
 
                 invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))

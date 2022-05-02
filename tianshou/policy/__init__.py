@@ -26,6 +26,7 @@ from tianshou.policy.imitation.discrete_crr import DiscreteCRRPolicy
 from tianshou.policy.modelbased.psrl import PSRLPolicy
 from tianshou.policy.multiagent.mapolicy import MultiAgentPolicyManager
 
+from tianshou.policy.modelfree.maskppo import MaskPPOPolicy
 __all__ = [
     "BasePolicy",
     "RandomPolicy",
@@ -51,4 +52,5 @@ __all__ = [
     "DiscreteCRRPolicy",
     "PSRLPolicy",
     "MultiAgentPolicyManager",
+    "MaskPPOPolicy",
 ]

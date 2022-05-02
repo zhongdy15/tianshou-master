@@ -9,7 +9,7 @@ from tianshou.policy import A2CPolicy
 from tianshou.utils.net.common import ActorCritic
 import matplotlib.pyplot as plt
 
-class PPOPolicy(A2CPolicy):
+class MaskPPOPolicy(A2CPolicy):
     r"""Implementation of Proximal Policy Optimization. arXiv:1707.06347.
 
     :param torch.nn.Module actor: the actor network following the rules in
@@ -66,6 +66,10 @@ class PPOPolicy(A2CPolicy):
         critic: torch.nn.Module,
         optim: torch.optim.Optimizer,
         dist_fn: Type[torch.distributions.Distribution],
+        inv_model: torch.nn.Module,
+        inv_optim: torch.optim.Optimizer,
+        mask_model: torch.nn.Module,
+        mask_optim: torch.optim.Optimizer,
         eps_clip: float = 0.2,
         dual_clip: Optional[float] = None,
         value_clip: bool = False,
@@ -85,9 +89,12 @@ class PPOPolicy(A2CPolicy):
         self._norm_adv = advantage_normalization
         self._recompute_adv = recompute_advantage
         self._actor_critic: ActorCritic
+        self.inv_model = inv_model
+        self.inv_optim = inv_optim
+        self.mask_model = mask_model
+        self.mask_optim = mask_optim
 
-        for key,value in kwargs.items():
-            print("{}={}".format(key,value))
+        self.learn_index = 0
         # self.state_discrete_num = self.state_to_int([1, 1, 1]) + 1
         # self.action_num = 2
         # state_discrete_num = self.state_discrete_num
@@ -124,67 +131,6 @@ class PPOPolicy(A2CPolicy):
     def learn(  # type: ignore
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
     ) -> Dict[str, List[float]]:
-        # # 初始化一个矩阵
-        # state_discrete_num = self.state_discrete_num
-        # action_num = self.action_num
-        #
-        # cal_ssa = np.zeros((state_discrete_num, state_discrete_num, action_num))
-        # cal_ss = np.zeros((state_discrete_num, state_discrete_num))
-        # cal_sa = np.zeros((state_discrete_num, action_num))
-        # # 遍历buffer
-        # buffer_len = batch["obs"].shape[0]
-        # for ii in range(buffer_len):
-        #     st = batch["obs"][ii]
-        #     st_next = batch["obs_next"][ii]
-        #     at = batch["act"][ii]
-        #
-        #     st_index = self.state_to_int(st)
-        #     st_next_index = self.state_to_int(st_next)
-        #     at_index = int(at)
-        #     cal_ssa[st_index][st_next_index][at_index] += 1
-        #     cal_ss[st_index][st_next_index] += 1
-        #     cal_sa[st_index][at_index] += 1
-        # self.cal_sa = self.cal_sa + cal_sa
-        # self.cal_ss = self.cal_ss + cal_ss
-        # self.cal_ssa =self.cal_ssa + cal_ssa
-        #
-        # dist = self(batch).dist
-        # pi_p = dist.log_prob(batch.act).exp().float()
-        # pi_p = pi_p.detach().numpy()
-        # # p2 = P(at|st,st')
-        # p2 = np.zeros(batch.act.shape)
-        #
-        # for ii in range(buffer_len):
-        #     st = batch["obs"][ii]
-        #     st_next = batch["obs_next"][ii]
-        #     at = batch["act"][ii]
-        #
-        #     st_index = self.state_to_int(st)
-        #     st_next_index = self.state_to_int(st_next)
-        #     at_index = int(at)
-        #
-        #     p2[ii] = self.cal_ssa[st_index][st_next_index][at_index] / self.cal_ss[st_index][st_next_index]
-        # self.actor.cal_ssa = self.cal_ssa
-        # self.actor.cal_sa = self.cal_sa
-        # self.actor.cal_ss = self.cal_ss
-        #
-        #
-        # C_phi = p2 / pi_p - 1
-        # fuel = batch["obs"][:, -1]
-        #
-        # #plt.plot(C_phi, label = "dependency factor", color='r')
-        # #plt.plot(fuel, label = "fuel remain", color='g')
-        # #plt.show()
-        # fuel_average_C_phi = np.zeros((9))
-        # for fuel_remain in range(9):
-        #     a = C_phi[fuel == fuel_remain/8]
-        #     a = np.abs(a)
-        #     fuel_average_C_phi[fuel_remain] = np.average(a)
-        #print("fuel_C_phi")
-        #print(fuel_average_C_phi)
-        #plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
-        #plt.show()
-
 
         #---todo in 4/28---
         #修改ppo的learn函数：
@@ -198,63 +144,134 @@ class PPOPolicy(A2CPolicy):
 
         #固定策略训练mask、固定mask训练策略、交替训练
         #---todo in 4/28---
-
-
+        self.learn_index += 1
+        # 每40个回合执行如下操作：
+        # 前20个回合训练MASK、策略pi不变、mask=NONE：
+        # 前10个回合只训练inverse model
+        # 10-20回合既训练inv_model，又利用inv_model训练mask_model
+        # 第20个回合替换原有的mask为新的mask，mask从None变成模型
+        # 后20个回合只训练pi，mask不变：
+        # 保持新的mask，不再变化，仅训练策略
+        total_update_interval = 8 #40
+        mask_update_start = 2 #10
+        policy_update_start = 4 #20
 
 
 
         losses, clip_losses, vf_losses, ent_losses = [], [], [], []
-        for step in range(repeat):
-            if self._recompute_adv and step > 0:
-                batch = self._compute_returns(batch, self._buffer, self._indices)
-            for b in batch.split(batch_size, merge_last=True):
-                # calculate loss for actor
-                dist = self(b).dist
-                if self._norm_adv:
-                    mean, std = b.adv.mean(), b.adv.std()
-                    b.adv = (b.adv - mean) / std  # per-batch norm
-                ratio = (dist.log_prob(b.act) - b.logp_old).exp().float()
-                ratio = ratio.reshape(ratio.size(0), -1).transpose(0, 1)
-                surr1 = ratio * b.adv
-                surr2 = ratio.clamp(1.0 - self._eps_clip, 1.0 + self._eps_clip) * b.adv
-                if self._dual_clip:
-                    clip1 = torch.min(surr1, surr2)
-                    clip2 = torch.max(clip1, self._dual_clip * b.adv)
-                    clip_loss = -torch.where(b.adv < 0, clip2, clip1).mean()
-                else:
-                    clip_loss = -torch.min(surr1, surr2).mean()
-                # calculate loss for critic
-                value = self.critic(b.obs).flatten()
-                if self._value_clip:
-                    v_clip = b.v_s + (value -
-                                      b.v_s).clamp(-self._eps_clip, self._eps_clip)
-                    vf1 = (b.returns - value).pow(2)
-                    vf2 = (b.returns - v_clip).pow(2)
-                    vf_loss = torch.max(vf1, vf2).mean()
-                else:
-                    vf_loss = (b.returns - value).pow(2).mean()
-                # calculate regularization and overall loss
-                ent_loss = dist.entropy().mean()
-                loss = clip_loss + self._weight_vf * vf_loss \
-                    - self._weight_ent * ent_loss
-                self.optim.zero_grad()
-                loss.backward()
-                if self._grad_norm:  # clip large gradient
-                    nn.utils.clip_grad_norm_(
-                        self._actor_critic.parameters(), max_norm=self._grad_norm
-                    )
-                self.optim.step()
-                clip_losses.append(clip_loss.item())
-                vf_losses.append(vf_loss.item())
-                ent_losses.append(ent_loss.item())
-                losses.append(loss.item())
+        inverse_losses, mask_losses = [],[]
+        #learn inverse_model
+        if self.learn_index % total_update_interval ==0:
+            #ineversemodel是否需要重新初始化
+            pass
+
+
+        if self.learn_index % total_update_interval < policy_update_start:
+            # 训练inv_model
+            for step in range(repeat):
+                for b in batch.split(batch_size, merge_last=True):
+                    ss = np.concatenate((b.obs, b.obs_next), axis=1)
+                    pred = self.inv_model(ss)
+                    target = nn.functional.one_hot(b.act.long(), self.actor.action_shape)
+                    loss_func = nn.CrossEntropyLoss()
+                    inv_loss = loss_func(pred[0], target.float())
+                    self.inv_optim.zero_grad()
+                    inv_loss.backward()
+                    self.inv_optim.step()
+                    inverse_losses.append(inv_loss.item())
+            print("learn_inv_inex:" + str(self.learn_index) + " inv_loss" + str(inv_loss.item()))
+
+
+        if policy_update_start > self.learn_index % total_update_interval > mask_update_start:
+            #更新mask
+            epsilon = 1e-5
+
+            for step in range(repeat):
+                for b in batch.split(batch_size, merge_last=True):
+                    # 利用p(a|s,s')学习mask(s,a)
+                    #---todo in 04/29---
+                    #学习mask(s,a),并且查看流程训练的步骤
+                    #---todo in 04/29---
+                    ss = np.concatenate((b.obs, b.obs_next), axis=1)
+                    sa = np.concatenate((b.obs, b.act.unsqueeze(1)), axis=1)
+
+                    mask_pred = self.mask_model(sa)[0]
+
+                    dist = self(b).dist
+                    target_log_pia = dist.log_prob(b.act)
+                    pi_a = self.inv_model(ss)[0]
+                    action_one_hot = nn.functional.one_hot(b.act.long(), self.actor.action_shape).bool()
+                    pred_pi_act = torch.masked_select(pi_a, action_one_hot)
+                    indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
+
+                    mask_loss = (mask_pred - indepence_factor).pow(2).mean()
+                    self.mask_optim.zero_grad()
+                    mask_loss.backward()
+                    self.mask_optim.step()
+                    mask_losses.append(mask_loss.item())
+            print("learn_mask_inex:" + str(self.learn_index) + " mask_loss" + str(mask_loss.item()))
+
+
+        # 更新策略=更新pi+更新mask
+        # 每40个回合里的后20个回合更新一次策略
+        if self.learn_index % total_update_interval >  policy_update_start:
+            # 更新mask
+            self.actor.mask_model = copy.deepcopy(self.mask_model)
+            for step in range(repeat):
+                if self._recompute_adv and step > 0:
+                    batch = self._compute_returns(batch, self._buffer, self._indices)
+                for b in batch.split(batch_size, merge_last=True):
+                    # calculate loss for actor
+                    dist = self(b).dist
+                    if self._norm_adv:
+                        mean, std = b.adv.mean(), b.adv.std()
+                        b.adv = (b.adv - mean) / std  # per-batch norm
+                    ratio = (dist.log_prob(b.act) - b.logp_old).exp().float()
+                    ratio = ratio.reshape(ratio.size(0), -1).transpose(0, 1)
+                    surr1 = ratio * b.adv
+                    surr2 = ratio.clamp(1.0 - self._eps_clip, 1.0 + self._eps_clip) * b.adv
+                    if self._dual_clip:
+                        clip1 = torch.min(surr1, surr2)
+                        clip2 = torch.max(clip1, self._dual_clip * b.adv)
+                        clip_loss = -torch.where(b.adv < 0, clip2, clip1).mean()
+                    else:
+                        clip_loss = -torch.min(surr1, surr2).mean()
+                    # calculate loss for critic
+                    value = self.critic(b.obs).flatten()
+                    if self._value_clip:
+                        v_clip = b.v_s + (value -
+                                          b.v_s).clamp(-self._eps_clip, self._eps_clip)
+                        vf1 = (b.returns - value).pow(2)
+                        vf2 = (b.returns - v_clip).pow(2)
+                        vf_loss = torch.max(vf1, vf2).mean()
+                    else:
+                        vf_loss = (b.returns - value).pow(2).mean()
+                    # calculate regularization and overall loss
+                    ent_loss = dist.entropy().mean()
+                    loss = clip_loss + self._weight_vf * vf_loss \
+                        - self._weight_ent * ent_loss
+                    self.optim.zero_grad()
+                    loss.backward()
+                    if self._grad_norm:  # clip large gradient
+                        nn.utils.clip_grad_norm_(
+                            self._actor_critic.parameters(), max_norm=self._grad_norm
+                        )
+                    self.optim.step()
+                    clip_losses.append(clip_loss.item())
+                    vf_losses.append(vf_loss.item())
+                    ent_losses.append(ent_loss.item())
+                    losses.append(loss.item())
+            print("learn_policy_inex:" + str(self.learn_index) + " policy_loss" + str(loss.item()))
         # update learning rate if lr_scheduler is given
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
+
 
         return {
             "loss": losses,
             "loss/clip": clip_losses,
             "loss/vf": vf_losses,
             "loss/ent": ent_losses,
+            "loss/inv": inverse_losses,
+            "loss/mask": mask_losses,
         }

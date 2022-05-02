@@ -18,6 +18,7 @@ sys.path.insert(0, package)
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 from tianshou.env import SubprocVectorEnv
 from tianshou.policy import PPOPolicy
+from tianshou.policy import MaskPPOPolicy
 from tianshou.trainer import onpolicy_trainer
 from tianshou.utils import TensorboardLogger
 from tianshou.utils.net.common import ActorCritic, DataParallelNet, Net
@@ -77,7 +78,7 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
-    args.mask = True
+    # args.mask = True
     # args.max_lenth = 1600
     return args
 
@@ -118,6 +119,15 @@ def test_ppo(args=get_args()):
     train_envs.seed(args.seed)
     test_envs.seed(args.seed)
     # model
+    state_num = int(np.prod(args.state_shape))
+    action_num = int(np.prod(args.action_shape))
+
+    # p(a|s,s') model:inverse_dynamic model
+    inv_model = Net(state_num*2, action_num, hidden_sizes=args.hidden_sizes, device=args.device, softmax=True)
+    # M(s,a) model: independence factor for mask
+    # action : 1维两个选择
+    mask_model = Net(state_num+1, 1, hidden_sizes=args.hidden_sizes, device=args.device)
+
     net = Net(args.state_shape, hidden_sizes=args.hidden_sizes, device=args.device)
     if torch.cuda.is_available():
         # print("cuda is available")
@@ -138,8 +148,11 @@ def test_ppo(args=get_args()):
             torch.nn.init.orthogonal_(m.weight)
             torch.nn.init.zeros_(m.bias)
     optim = torch.optim.Adam(actor_critic.parameters(), lr=args.lr)
+    inv_optim = torch.optim.SGD(inv_model.parameters(), lr=args.lr)
+    mask_optim = torch.optim.SGD(mask_model.parameters(), lr=args.lr)
+
     dist = torch.distributions.Categorical
-    policy = PPOPolicy(
+    policy = MaskPPOPolicy(
         actor,
         critic,
         optim,
@@ -156,7 +169,11 @@ def test_ppo(args=get_args()):
         action_space=env.action_space,
         deterministic_eval=True,
         advantage_normalization=args.norm_adv,
-        recompute_advantage=args.recompute_adv
+        recompute_advantage=args.recompute_adv,
+        inv_model=inv_model,
+        inv_optim=inv_optim,
+        mask_model=mask_model,
+        mask_optim=mask_optim
     )
     # collector
     train_collector = Collector(
