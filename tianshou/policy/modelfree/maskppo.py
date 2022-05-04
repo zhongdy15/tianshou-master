@@ -70,6 +70,10 @@ class MaskPPOPolicy(A2CPolicy):
         inv_optim: torch.optim.Optimizer,
         mask_model: torch.nn.Module,
         mask_optim: torch.optim.Optimizer,
+        total_update_interval: int = 200,
+        mask_update_start: int = 100,
+        policy_update_start: int = 150,
+        policy_learn_initial: int = 200,
         eps_clip: float = 0.2,
         dual_clip: Optional[float] = None,
         value_clip: bool = False,
@@ -93,6 +97,11 @@ class MaskPPOPolicy(A2CPolicy):
         self.inv_optim = inv_optim
         self.mask_model = mask_model
         self.mask_optim = mask_optim
+        self.total_update_interval = total_update_interval  # 80#200
+        self.mask_update_start = mask_update_start  # 40#100
+        self.policy_update_start = policy_update_start  # 60#150
+        self.policy_learn_initial = policy_learn_initial  # 200#500
+
 
         self.learn_index = 0
         # self.state_discrete_num = self.state_to_int([1, 1, 1]) + 1
@@ -152,75 +161,18 @@ class MaskPPOPolicy(A2CPolicy):
         # 第20个回合替换原有的mask为新的mask，mask从None变成模型
         # 后20个回合只训练pi，mask不变：
         # 保持新的mask，不再变化，仅训练策略
-        total_update_interval = 1e10
-        mask_update_start = float('inf') #25
-        policy_update_start = float('inf') #35
+        total_update_interval = self.total_update_interval #80#200
+        mask_update_start = self.mask_update_start #40#100
+        policy_update_start = self.policy_update_start #60#150
 
+        # 一开始进行policy学习，直到学习得差不多了，再进行mask+policy迭代
+        policy_learn_initial = self.policy_learn_initial #200#500
 
 
         losses, clip_losses, vf_losses, ent_losses = [], [], [], []
         inverse_losses, mask_losses = [],[]
-        #learn inverse_model
-        if self.learn_index % total_update_interval ==0:
-            #ineversemodel是否需要重新初始化
-            pass
 
-
-        if self.learn_index % total_update_interval < policy_update_start:
-            # 训练inv_model
-            for step in range(repeat):
-                for b in batch.split(batch_size, merge_last=True):
-                    ss = np.concatenate((b.obs, b.obs_next), axis=1)
-                    pred = self.inv_model(ss)
-                    target = nn.functional.one_hot(b.act.long(), self.actor.action_shape)
-                    loss_func = nn.CrossEntropyLoss()
-                    inv_loss = loss_func(pred[0], target.float())
-                    self.inv_optim.zero_grad()
-                    inv_loss.backward()
-                    self.inv_optim.step()
-                    inverse_losses.append(inv_loss.item())
-            print("learn_inv_inex:" + str(self.learn_index) + " inv_loss" + str(inv_loss.item()))
-
-
-        if policy_update_start > self.learn_index % total_update_interval >= mask_update_start:
-            #更新mask
-            epsilon = 1e-5
-
-            for step in range(repeat):
-                for b in batch.split(batch_size, merge_last=True):
-                    # 利用p(a|s,s')学习mask(s,a)
-                    #---todo in 04/29---
-                    #学习mask(s,a),并且查看流程训练的步骤
-                    #---todo in 04/29---
-                    ss = np.concatenate((b.obs, b.obs_next), axis=1)
-                    # sa = np.concatenate((b.obs, b.act.unsqueeze(1)), axis=1)
-                    action_one_hot = nn.functional.one_hot(b.act.long(), self.actor.action_shape).bool()
-
-                    mask_pred_all_action = self.mask_model(b.obs)[0]
-                    mask_pred_current_action = torch.masked_select(mask_pred_all_action,action_one_hot)
-
-                    dist = self(b).dist
-                    target_log_pia = dist.log_prob(b.act)
-                    with torch.no_grad():
-                        # 从inv_model里面无梯度地取值用来训练mask
-                        pi_a = self.inv_model(ss)[0]
-
-                    pred_pi_act = torch.masked_select(pi_a, action_one_hot)
-                    indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
-
-                    mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
-                    self.mask_optim.zero_grad()
-                    mask_loss.backward()
-                    self.mask_optim.step()
-                    mask_losses.append(mask_loss.item())
-            print("learn_mask_inex:" + str(self.learn_index) + " mask_loss" + str(mask_loss.item()))
-
-
-        # 更新策略=更新pi+更新mask
-        # 每40个回合里的后20个回合更新一次策略
-        if self.learn_index % total_update_interval >=  policy_update_start:
-            # 更新mask
-            self.actor.mask_model = copy.deepcopy(self.mask_model)
+        if self.learn_index < policy_learn_initial:
             for step in range(repeat):
                 if self._recompute_adv and step > 0:
                     batch = self._compute_returns(batch, self._buffer, self._indices)
@@ -265,10 +217,136 @@ class MaskPPOPolicy(A2CPolicy):
                     vf_losses.append(vf_loss.item())
                     ent_losses.append(ent_loss.item())
                     losses.append(loss.item())
-            print("learn_policy_inex:" + str(self.learn_index) + " policy_loss" + str(loss.item()))
-        # update learning rate if lr_scheduler is given
+            print("learn_initial_policy_inex:" + str(self.learn_index) + " policy_loss" + str(loss.item()))
+        else:
+
+
+            #learn inverse_model
+            if self.learn_index % total_update_interval ==0:
+                #ineversemodel是否需要重新初始化
+                pass
+
+
+            if self.learn_index % total_update_interval < policy_update_start:
+                # 训练inv_model
+                for step in range(repeat):
+                    for b in batch.split(batch_size, merge_last=True):
+                        # 考虑采用状态的差作为输入
+                        # ss = np.concatenate((b.obs, b.obs_next), axis=1)
+                        delta_s = b.obs_next - b.obs
+                        ss = np.concatenate((b.obs, delta_s), axis=1)
+                        pred = self.inv_model(ss)
+
+                        # action_shape = self.actor.net.module.action_shape if torch.cuda.is_available() else self.actor.action_shape
+                        # target = nn.functional.one_hot(b.act.long(), action_shape)
+
+                        loss_func = nn.CrossEntropyLoss()
+                        inv_loss = loss_func(pred[0], b.act.long())
+                        self.inv_optim.zero_grad()
+                        inv_loss.backward()
+                        self.inv_optim.step()
+                        inverse_losses.append(inv_loss.item())
+                print("learn_inv_inex:" + str(self.learn_index) + " inv_loss" + str(inv_loss.item()))
+
+
+            if policy_update_start > self.learn_index % total_update_interval >= mask_update_start:
+                #更新mask
+                epsilon = 1e-5
+
+                for step in range(repeat):
+                    for b in batch.split(batch_size, merge_last=True):
+                        # 利用p(a|s,s')学习mask(s,a)
+                        #---todo in 04/29---
+                        #学习mask(s,a),并且查看流程训练的步骤
+                        #---todo in 04/29---
+                        # ss = np.concatenate((b.obs, b.obs_next), axis=1)
+                        # sa = np.concatenate((b.obs, b.act.unsqueeze(1)), axis=1)
+
+                        delta_s = b.obs_next - b.obs
+                        ss = np.concatenate((b.obs, delta_s), axis=1)
+                        action_shape = self.actor.net.module.action_shape if torch.cuda.is_available() else self.actor.action_shape
+
+                        action_one_hot = nn.functional.one_hot(b.act.long(), action_shape).bool()
+
+                        mask_pred_all_action = self.mask_model(b.obs)[0]
+                        mask_pred_current_action = torch.masked_select(mask_pred_all_action,action_one_hot)
+
+                        dist = self(b).dist
+                        target_log_pia = dist.log_prob(b.act)
+                        with torch.no_grad():
+                            # 从inv_model里面无梯度地取值用来训练mask
+                            pi_a = self.inv_model(ss)[0]
+
+                        pred_pi_act = torch.masked_select(pi_a, action_one_hot)
+                        indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
+
+                        mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
+                        self.mask_optim.zero_grad()
+                        mask_loss.backward()
+                        self.mask_optim.step()
+                        mask_losses.append(mask_loss.item())
+                print("learn_mask_inex:" + str(self.learn_index) + " mask_loss" + str(mask_loss.item()))
+
+
+            # 更新策略=更新pi+更新mask
+            # 每40个回合里的后20个回合更新一次策略
+            if self.learn_index % total_update_interval >=  policy_update_start:
+                # 更新mask
+                if torch.cuda.is_available():
+                    self.actor.net.module.mask_model = copy.deepcopy(self.mask_model)
+                else:
+                    self.actor.mask_model = copy.deepcopy(self.mask_model)
+                for step in range(repeat):
+                    if self._recompute_adv and step > 0:
+                        batch = self._compute_returns(batch, self._buffer, self._indices)
+                    for b in batch.split(batch_size, merge_last=True):
+                        # calculate loss for actor
+                        dist = self(b).dist
+                        if self._norm_adv:
+                            mean, std = b.adv.mean(), b.adv.std()
+                            b.adv = (b.adv - mean) / std  # per-batch norm
+                        ratio = (dist.log_prob(b.act) - b.logp_old).exp().float()
+                        ratio = ratio.reshape(ratio.size(0), -1).transpose(0, 1)
+                        surr1 = ratio * b.adv
+                        surr2 = ratio.clamp(1.0 - self._eps_clip, 1.0 + self._eps_clip) * b.adv
+                        if self._dual_clip:
+                            clip1 = torch.min(surr1, surr2)
+                            clip2 = torch.max(clip1, self._dual_clip * b.adv)
+                            clip_loss = -torch.where(b.adv < 0, clip2, clip1).mean()
+                        else:
+                            clip_loss = -torch.min(surr1, surr2).mean()
+                        # calculate loss for critic
+                        value = self.critic(b.obs).flatten()
+                        if self._value_clip:
+                            v_clip = b.v_s + (value -
+                                              b.v_s).clamp(-self._eps_clip, self._eps_clip)
+                            vf1 = (b.returns - value).pow(2)
+                            vf2 = (b.returns - v_clip).pow(2)
+                            vf_loss = torch.max(vf1, vf2).mean()
+                        else:
+                            vf_loss = (b.returns - value).pow(2).mean()
+                        # calculate regularization and overall loss
+                        ent_loss = dist.entropy().mean()
+                        loss = clip_loss + self._weight_vf * vf_loss \
+                            - self._weight_ent * ent_loss
+                        self.optim.zero_grad()
+                        loss.backward()
+                        if self._grad_norm:  # clip large gradient
+                            nn.utils.clip_grad_norm_(
+                                self._actor_critic.parameters(), max_norm=self._grad_norm
+                            )
+                        self.optim.step()
+                        clip_losses.append(clip_loss.item())
+                        vf_losses.append(vf_loss.item())
+                        ent_losses.append(ent_loss.item())
+                        losses.append(loss.item())
+                print("learn_policy_inex:" + str(self.learn_index) + " policy_loss" + str(loss.item()))
+            # update learning rate if lr_scheduler is given
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
+
+        if self.learn_index % 250 == 0:
+            print(self.learn_index)
 
         self.learn_index += 1
 

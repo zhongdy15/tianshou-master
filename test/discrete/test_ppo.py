@@ -12,6 +12,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,6'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -60,6 +61,8 @@ def get_args():
                         help='action_penalty')
     parser.add_argument("--mask", action="store_true",
                         help="no mask default")
+    parser.add_argument("--mask_factor", type=float, default=-100,
+                        help="mask_factor")
 
 
 
@@ -74,13 +77,26 @@ def get_args():
     parser.add_argument('--recompute-adv', type=int, default=0)
     parser.add_argument('--dual-clip', type=float, default=None)
     parser.add_argument('--value-clip', type=int, default=0)
+
+    # mask_special
+    # 每一个total_update_inerval中
+    # 0-mask_update_start:更新inv模型
+    # mask_update_start - policy_update_start:更新inv模型和mask模型
+    # policy_update_start以后：保持训练得到的mask不变，仅训练策略
+    parser.add_argument('--total_update_interval', type=int, default=2e10)
+    parser.add_argument('--mask_update_start', type=int, default=1e10)
+    parser.add_argument('--policy_update_start', type=int, default=1e10)
+    parser.add_argument('--policy_learn_initial', type=int, default=250)
+
+
     args = parser.parse_known_args()[0]
+    # print("!!!!device!!!"+args.device)
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
     args.mask = True
-    args.epoch = 200
-    # args.max_lenth = 1600
+    args.epoch = 60
+    # args.max_lenth = 200
     return args
 
 
@@ -124,20 +140,20 @@ def test_ppo(args=get_args()):
     action_num = int(np.prod(args.action_shape))
 
     # p(a|s,s') model:inverse_dynamic model
-    inv_model = Net(state_num*2, action_num, hidden_sizes=args.hidden_sizes, device=args.device, softmax=True)
+    inv_model = Net(state_num*2, action_num, hidden_sizes=args.hidden_sizes, device=args.device, softmax=True).to(args.device)
     # M(s,a) model: independence factor for mask
     # action : 1维两个选择
     # mask model输出s下每个a的因子
-    mask_model = Net(state_num, action_num, hidden_sizes=args.hidden_sizes, device=args.device)
+    mask_model = Net(state_num, action_num, hidden_sizes=args.hidden_sizes, device=args.device).to(args.device)
 
     net = Net(args.state_shape, hidden_sizes=args.hidden_sizes, device=args.device)
     if torch.cuda.is_available():
         # print("cuda is available")
         # print(args.mask)
         actor = DataParallelNet(
-            Actor(net, args.action_shape, device=None, mask=args.mask).to(args.device)
+            Actor(net, args.action_shape, device=args.device, mask=args.mask).to(args.device)
         )
-        critic = DataParallelNet(Critic(net, device=None).to(args.device))
+        critic = DataParallelNet(Critic(net, device=args.device).to(args.device))
     else:
         # print("cuda is not available")
         # print(args.mask)
@@ -154,29 +170,54 @@ def test_ppo(args=get_args()):
     mask_optim = torch.optim.Adam(mask_model.parameters(), lr=args.lr)
 
     dist = torch.distributions.Categorical
-    policy = MaskPPOPolicy(
-        actor,
-        critic,
-        optim,
-        dist,
-        discount_factor=args.gamma,
-        max_grad_norm=args.max_grad_norm,
-        eps_clip=args.eps_clip,
-        vf_coef=args.vf_coef,
-        ent_coef=args.ent_coef,
-        gae_lambda=args.gae_lambda,
-        reward_normalization=args.rew_norm,
-        dual_clip=args.dual_clip,
-        value_clip=args.value_clip,
-        action_space=env.action_space,
-        deterministic_eval=True,
-        advantage_normalization=args.norm_adv,
-        recompute_advantage=args.recompute_adv,
-        inv_model=inv_model,
-        inv_optim=inv_optim,
-        mask_model=mask_model,
-        mask_optim=mask_optim
-    )
+    if args.mask:
+        policy = MaskPPOPolicy(
+            actor,
+            critic,
+            optim,
+            dist,
+            total_update_interval=args.total_update_interval,
+            mask_update_start=args.mask_update_start,
+            policy_update_start=args.policy_update_start,
+            policy_learn_initial=args.policy_learn_initial,
+            discount_factor=args.gamma,
+            max_grad_norm=args.max_grad_norm,
+            eps_clip=args.eps_clip,
+            vf_coef=args.vf_coef,
+            ent_coef=args.ent_coef,
+            gae_lambda=args.gae_lambda,
+            reward_normalization=args.rew_norm,
+            dual_clip=args.dual_clip,
+            value_clip=args.value_clip,
+            action_space=env.action_space,
+            deterministic_eval=True,
+            advantage_normalization=args.norm_adv,
+            recompute_advantage=args.recompute_adv,
+            inv_model=inv_model,
+            inv_optim=inv_optim,
+            mask_model=mask_model,
+            mask_optim=mask_optim
+        )
+    else:
+        policy = PPOPolicy(
+            actor,
+            critic,
+            optim,
+            dist,
+            discount_factor=args.gamma,
+            max_grad_norm=args.max_grad_norm,
+            eps_clip=args.eps_clip,
+            vf_coef=args.vf_coef,
+            ent_coef=args.ent_coef,
+            gae_lambda=args.gae_lambda,
+            reward_normalization=args.rew_norm,
+            dual_clip=args.dual_clip,
+            value_clip=args.value_clip,
+            action_space=env.action_space,
+            deterministic_eval=True,
+            advantage_normalization=args.norm_adv,
+            recompute_advantage=args.recompute_adv,
+        )
     # collector
     train_collector = Collector(
         policy, train_envs, VectorReplayBuffer(args.buffer_size, args.training_num)
@@ -185,11 +226,20 @@ def test_ppo(args=get_args()):
     test_collector = Collector(policy, test_envs)
     # # log
     # print(args.mask)
+    # "interval" + str(args.dist_interval) + '_' + \
+    # parser.add_argument('--total_update_interval', type=int, default=200)
+    # parser.add_argument('--mask_update_start', type=int, default=100)
+    # parser.add_argument('--policy_update_start', type=int, default=150)
+    # parser.add_argument('--policy_learn_initial', type=int, default=200)
     log_name = "chances" + str(args.initial_chances) + '_' \
-               "interval" + str(args.dist_interval) + '_' + \
                "maxstep" + str(args.max_lenth) + '_' + \
                "acpenalty" + str(args.action_penalty) + '_' +\
-               "mask" + str(args.mask) + '_' +\
+               "mask" + str(args.mask) + '_' + \
+               "mf" + str(args.mask_factor) + '_' + \
+               "totalinter" + str(args.total_update_interval) + '_' + \
+               "maskst" + str(args.mask_update_start) + '_' + \
+               "policyst" + str(args.policy_update_start) + '_' + \
+               "policyinitial" + str(args.policy_learn_initial) + '_' + \
                time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
     log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
