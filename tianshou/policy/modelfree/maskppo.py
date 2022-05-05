@@ -8,6 +8,7 @@ from tianshou.data import Batch, ReplayBuffer, to_torch_as
 from tianshou.policy import A2CPolicy
 from tianshou.utils.net.common import ActorCritic
 import matplotlib.pyplot as plt
+import os
 
 class MaskPPOPolicy(A2CPolicy):
     r"""Implementation of Proximal Policy Optimization. arXiv:1707.06347.
@@ -70,6 +71,7 @@ class MaskPPOPolicy(A2CPolicy):
         inv_optim: torch.optim.Optimizer,
         mask_model: torch.nn.Module,
         mask_optim: torch.optim.Optimizer,
+        save_dir: str,
         total_update_interval: int = 200,
         mask_update_start: int = 100,
         policy_update_start: int = 150,
@@ -101,7 +103,7 @@ class MaskPPOPolicy(A2CPolicy):
         self.mask_update_start = mask_update_start  # 40#100
         self.policy_update_start = policy_update_start  # 60#150
         self.policy_learn_initial = policy_learn_initial  # 200#500
-
+        self.save_dir = save_dir
 
         self.learn_index = 0
         # self.state_discrete_num = self.state_to_int([1, 1, 1]) + 1
@@ -140,6 +142,14 @@ class MaskPPOPolicy(A2CPolicy):
     def learn(  # type: ignore
         self, batch: Batch, batch_size: int, repeat: int, **kwargs: Any
     ) -> Dict[str, List[float]]:
+
+        # for test
+        inv_path = os.path.join(self.save_dir, 'inv.pth')
+        mask_path = os.path.join(self.save_dir, 'mask.pth')
+        policy_path = os.path.join(self.save_dir, 'policy.pth')
+        # torch.save(self.inv_model, inv_path)
+        # new_model = torch.load(inv_path)
+
 
         #---todo in 4/28---
         #修改ppo的learn函数：
@@ -345,8 +355,10 @@ class MaskPPOPolicy(A2CPolicy):
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
-        if self.learn_index % 250 == 0:
+        if self.learn_index % 100 == 0:
             print(self.learn_index)
+            torch.save(self.inv_model, inv_path)
+            torch.save(self.mask_model, mask_path)
 
         self.learn_index += 1
 

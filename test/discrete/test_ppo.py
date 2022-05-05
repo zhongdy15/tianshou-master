@@ -12,7 +12,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,6'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -94,8 +94,8 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
-    args.mask = True
-    args.epoch = 60
+    # args.mask = True
+    # args.epoch = 60
     # args.max_lenth = 200
     return args
 
@@ -170,12 +170,27 @@ def test_ppo(args=get_args()):
     mask_optim = torch.optim.Adam(mask_model.parameters(), lr=args.lr)
 
     dist = torch.distributions.Categorical
+
+    log_name = "chances" + str(args.initial_chances) + '_' \
+               "maxstep" + str(args.max_lenth) + '_' + \
+               "acpenalty" + str(args.action_penalty) + '_' +\
+               "mask" + str(args.mask) + '_' + \
+               "mf" + str(args.mask_factor) + '_' + \
+               "totalinter" + str(args.total_update_interval) + '_' + \
+               "maskst" + str(args.mask_update_start) + '_' + \
+               "policyst" + str(args.policy_update_start) + '_' + \
+               "policyinitial" + str(args.policy_learn_initial) + '_' + \
+               time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
+
+    log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
+
     if args.mask:
         policy = MaskPPOPolicy(
             actor,
             critic,
             optim,
             dist,
+            save_dir=log_path,
             total_update_interval=args.total_update_interval,
             mask_update_start=args.mask_update_start,
             policy_update_start=args.policy_update_start,
@@ -231,18 +246,7 @@ def test_ppo(args=get_args()):
     # parser.add_argument('--mask_update_start', type=int, default=100)
     # parser.add_argument('--policy_update_start', type=int, default=150)
     # parser.add_argument('--policy_learn_initial', type=int, default=200)
-    log_name = "chances" + str(args.initial_chances) + '_' \
-               "maxstep" + str(args.max_lenth) + '_' + \
-               "acpenalty" + str(args.action_penalty) + '_' +\
-               "mask" + str(args.mask) + '_' + \
-               "mf" + str(args.mask_factor) + '_' + \
-               "totalinter" + str(args.total_update_interval) + '_' + \
-               "maskst" + str(args.mask_update_start) + '_' + \
-               "policyst" + str(args.policy_update_start) + '_' + \
-               "policyinitial" + str(args.policy_learn_initial) + '_' + \
-               time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
-    log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
     writer = SummaryWriter(log_path)
     logger = TensorboardLogger(writer)
 
