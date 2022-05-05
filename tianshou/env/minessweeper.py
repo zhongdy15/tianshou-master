@@ -311,7 +311,7 @@ class RunningMan(gym.Env):
                 self.state = next_state
             else:
                 # 否则，就会以概率p结束游戏
-                p = 1
+                p = 0.8
                 rand_float = random.random()
                 if rand_float < p:
                     done = True
