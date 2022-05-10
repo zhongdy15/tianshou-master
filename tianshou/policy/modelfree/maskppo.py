@@ -250,8 +250,17 @@ class MaskPPOPolicy(A2CPolicy):
                         # action_shape = self.actor.net.module.action_shape if torch.cuda.is_available() else self.actor.action_shape
                         # target = nn.functional.one_hot(b.act.long(), action_shape)
 
-                        loss_func = nn.CrossEntropyLoss()
-                        inv_loss = loss_func(pred[0], b.act.long())
+                        # for test
+                        # inv_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/chances8_maxstep400_acpenalty0_maskTrue_mf-100_totalinter20000000000_maskst10000000000_policyst10000000000_policyinitial750_2022-05-05-17-07-19/inv.pth"
+                        # load_model = torch.load(inv_path)
+                        # load_res = load_model(ss)
+                        # print(load_res)
+                        # print(b.act.long())
+                        action_shape = self.actor.net.module.action_shape if torch.cuda.is_available() else self.actor.action_shape
+
+                        action_one_hot = nn.functional.one_hot(b.act.long(), action_shape).float()
+
+                        inv_loss = nn.functional.mse_loss(pred[0], action_one_hot)
                         self.inv_optim.zero_grad()
                         inv_loss.backward()
                         self.inv_optim.step()

@@ -41,7 +41,7 @@ def get_args():
     parser.add_argument('--step-per-collect', type=int, default=2000)
     parser.add_argument('--repeat-per-collect', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=64)
-    parser.add_argument('--hidden-sizes', type=int, nargs='*', default=[64, 64])
+    parser.add_argument('--hidden-sizes', type=int, nargs='*', default=[256, 256])
     parser.add_argument('--training-num', type=int, default=4)
     parser.add_argument('--test-num', type=int, default=4)
     parser.add_argument('--logdir', type=str, default='log')
@@ -95,6 +95,7 @@ def get_args():
     # print(args.mask)
     # print(args.max_lenth)
     # args.mask = True
+    # args.policy_learn_initial = 0
     # args.epoch = 60
     # args.max_lenth = 200
     return args
@@ -175,11 +176,11 @@ def test_ppo(args=get_args()):
                "maxstep" + str(args.max_lenth) + '_' + \
                "acpenalty" + str(args.action_penalty) + '_' +\
                "mask" + str(args.mask) + '_' + \
-               "mf" + str(args.mask_factor) + '_' + \
-               "totalinter" + str(args.total_update_interval) + '_' + \
-               "maskst" + str(args.mask_update_start) + '_' + \
-               "policyst" + str(args.policy_update_start) + '_' + \
-               "policyinitial" + str(args.policy_learn_initial) + '_' + \
+               "mf" + str('{:.0e}'.format(args.mask_factor)) + '_' + \
+               "totalinter" + str('{:.0e}'.format(args.total_update_interval)) + '_' + \
+               "maskst" + str('{:.0e}'.format(args.mask_update_start)) + '_' + \
+               "policyst" + str('{:.0e}'.format(args.policy_update_start)) + '_' + \
+               "policyinitial" + str('{:.0e}'.format(args.policy_learn_initial)) + '_' + \
                time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
     log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
