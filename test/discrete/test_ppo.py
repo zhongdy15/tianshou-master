@@ -12,7 +12,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,2,3,4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,6'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -41,7 +41,7 @@ def get_args():
     parser.add_argument('--step-per-collect', type=int, default=2000)
     parser.add_argument('--repeat-per-collect', type=int, default=10)
     parser.add_argument('--batch-size', type=int, default=64)
-    parser.add_argument('--hidden-sizes', type=int, nargs='*', default=[256, 256])
+    parser.add_argument('--hidden-sizes', type=int, nargs='*', default=[64, 64])
     parser.add_argument('--training-num', type=int, default=4)
     parser.add_argument('--test-num', type=int, default=4)
     parser.add_argument('--logdir', type=str, default='log')
@@ -63,6 +63,7 @@ def get_args():
                         help="no mask default")
     parser.add_argument("--mask_factor", type=float, default=-100,
                         help="mask_factor")
+    parser.add_argument('--mask_hidden_sizes', type=int, nargs='*', default=[256, 256])
 
 
 
@@ -141,11 +142,11 @@ def test_ppo(args=get_args()):
     action_num = int(np.prod(args.action_shape))
 
     # p(a|s,s') model:inverse_dynamic model
-    inv_model = Net(state_num*2, action_num, hidden_sizes=args.hidden_sizes, device=args.device, softmax=True).to(args.device)
+    inv_model = Net(state_num*2, action_num, hidden_sizes=args.mask_hidden_sizes, device=args.device, softmax=True).to(args.device)
     # M(s,a) model: independence factor for mask
     # action : 1维两个选择
     # mask model输出s下每个a的因子
-    mask_model = Net(state_num, action_num, hidden_sizes=args.hidden_sizes, device=args.device).to(args.device)
+    mask_model = Net(state_num, action_num, hidden_sizes=args.mask_hidden_sizes, device=args.device).to(args.device)
 
     net = Net(args.state_shape, hidden_sizes=args.hidden_sizes, device=args.device)
     if torch.cuda.is_available():
