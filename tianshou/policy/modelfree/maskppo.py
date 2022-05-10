@@ -146,7 +146,7 @@ class MaskPPOPolicy(A2CPolicy):
         # for test
         inv_path = os.path.join(self.save_dir, 'inv.pth')
         mask_path = os.path.join(self.save_dir, 'mask.pth')
-        policy_path = os.path.join(self.save_dir, 'policy.pth')
+        actor_path = os.path.join(self.save_dir, 'actor.pth')
         # torch.save(self.inv_model, inv_path)
         # new_model = torch.load(inv_path)
 
@@ -368,6 +368,7 @@ class MaskPPOPolicy(A2CPolicy):
             print(self.learn_index)
             torch.save(self.inv_model, inv_path)
             torch.save(self.mask_model, mask_path)
+            torch.save(self.actor, actor_path)
 
         self.learn_index += 1
 

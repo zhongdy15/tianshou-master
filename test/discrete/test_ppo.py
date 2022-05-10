@@ -1,4 +1,5 @@
 import argparse
+import copy
 import os
 import pprint
 import time
@@ -63,7 +64,7 @@ def get_args():
                         help="no mask default")
     parser.add_argument("--mask_factor", type=float, default=-100,
                         help="mask_factor")
-    parser.add_argument('--mask_hidden_sizes', type=int, nargs='*', default=[256, 256])
+    parser.add_argument('--mask_hidden_sizes', type=int, nargs='*', default=[64, 64])
 
 
 
@@ -257,6 +258,15 @@ def test_ppo(args=get_args()):
 
     def stop_fn(mean_rewards):
         return mean_rewards >= 110 #env.spec.reward_threshold
+
+    # policy_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial2e+02_2022-05-10-16-29-47/policy.pth"
+    #
+    # load_policy = copy.deepcopy(policy)
+    # model = torch.load(policy_pth)
+    # load_policy.load_state_dict(torch.load(policy_pth))
+    #
+    # policy.actor = copy.deepcopy(load_policy.actor)
+
 
     # trainer
     result = onpolicy_trainer(
