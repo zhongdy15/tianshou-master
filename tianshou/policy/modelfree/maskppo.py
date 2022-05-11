@@ -259,7 +259,11 @@ class MaskPPOPolicy(A2CPolicy):
 
                         action_0_list = [[] for i in range(9)]
                         action_1_list = [[] for i in range(9)]
-                        factor =torch.log(load_res[0] / self(b).logits)
+                        # KL factor
+                        # factor =torch.log(load_res[0] / self(b).logits)
+                        # TV factor
+                        factor =  abs(self(b).logits / load_res[0] - 1)
+
                         # for items in  factor:
                         obs_copy = copy.deepcopy(b.obs)
                         rank = np.argsort(obs_copy,axis=0)[:,-1]
