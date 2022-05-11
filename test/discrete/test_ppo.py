@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '1,6'
+os.environ['CUDA_VISIBLE_DEVICES'] = '6,7'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -96,8 +96,9 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
-    args.mask = True
-    args.policy_learn_initial = 0
+    # args.mask = True
+    # args.policy_learn_initial = 0
+    # args.mask_update_start = 0
     # args.epoch = 60
     # args.max_lenth = 200
     return args

@@ -256,41 +256,48 @@ class MaskPPOPolicy(A2CPolicy):
                                    "/inv.pth"
                         load_model = torch.load(inv_path)
                         load_res = load_model(ss)
+                        self.inv_model = load_model
 
-                        action_0_list = [[] for i in range(9)]
-                        action_1_list = [[] for i in range(9)]
-                        # KL factor
-                        # factor =torch.log(load_res[0] / self(b).logits)
-                        # TV factor
-                        factor =  abs(self(b).logits / load_res[0] - 1)
 
-                        # for items in  factor:
-                        obs_copy = copy.deepcopy(b.obs)
-                        rank = np.argsort(obs_copy,axis=0)[:,-1]
-                        for i in rank:
-                            fuel = int(obs_copy[i,-1]*8)
-                            action_0_list[fuel].append(factor[i,0].item())
-                            action_1_list[fuel].append(factor[i,1].item())
-                            #print(obs_copy[i,-1])
-                        initial = 0
-                        width = 0.5
-
-                        plt.figure()
-                        #plt.subplot(1,2,1)
-                        for fuel in range(9):
-                            plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
-                            #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                            initial += len(action_0_list[fuel])
+                        # # ---inv model plot in 05/11---
+                        #
+                        # action_0_list = [[] for i in range(9)]
+                        # action_1_list = [[] for i in range(9)]
+                        # # KL factor
+                        # # factor =torch.log(load_res[0] / self(b).logits)
+                        # # TV factor
+                        # factor =  abs(self(b).logits / load_res[0] - 1)
+                        #
+                        # # for items in  factor:
+                        # obs_copy = copy.deepcopy(b.obs)
+                        # rank = np.argsort(obs_copy,axis=0)[:,-1]
+                        # for i in rank:
+                        #     fuel = int(obs_copy[i,-1]*8)
+                        #     action_0_list[fuel].append(factor[i,0].item())
+                        #     action_1_list[fuel].append(factor[i,1].item())
+                        #     #print(obs_copy[i,-1])
+                        # initial = 0
+                        # width = 0.5
+                        #
+                        # plt.figure()
+                        #
+                        # for fuel in range(9):
+                        #     plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
+                        #     #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                        #     initial += len(action_0_list[fuel])
+                        # # plt.show()
+                        # plt.figure()
+                        # # plt.subplot(1,2,1)
+                        # for fuel in range(9):
+                        #     plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
+                        #             width=width)
+                        #     # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                        #     initial += len(action_1_list[fuel])
+                        #
                         # plt.show()
-                        plt.figure()
-                        # plt.subplot(1,2,1)
-                        for fuel in range(9):
-                            plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
-                                    width=width)
-                            # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                            initial += len(action_1_list[fuel])
+                        # # ---inv model plot in 05/11---
 
-                        plt.show()
+
                         # print(load_res)
                         # print(b.act.long())
                         action_shape = self.actor.net.module.action_shape if torch.cuda.is_available() else self.actor.action_shape
@@ -334,7 +341,11 @@ class MaskPPOPolicy(A2CPolicy):
                             pi_a = self.inv_model(ss)[0]
 
                         pred_pi_act = torch.masked_select(pi_a, action_one_hot)
-                        indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
+                        # KL factor
+                        # indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
+                        # TV factor
+                        indepence_factor = abs(target_log_pia.exp().float() / (pred_pi_act+epsilon) - 1)
+
 
                         mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
                         self.mask_optim.zero_grad()
