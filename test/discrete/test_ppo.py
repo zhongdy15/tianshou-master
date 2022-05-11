@@ -64,7 +64,7 @@ def get_args():
                         help="no mask default")
     parser.add_argument("--mask_factor", type=float, default=-100,
                         help="mask_factor")
-    parser.add_argument('--mask_hidden_sizes', type=int, nargs='*', default=[64, 64])
+    parser.add_argument('--mask_hidden_sizes', type=int, nargs='*', default=[256, 256])
 
 
 
@@ -96,8 +96,8 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
-    # args.mask = True
-    # args.policy_learn_initial = 0
+    args.mask = True
+    args.policy_learn_initial = 0
     # args.epoch = 60
     # args.max_lenth = 200
     return args
@@ -259,13 +259,23 @@ def test_ppo(args=get_args()):
     def stop_fn(mean_rewards):
         return mean_rewards >= 110 #env.spec.reward_threshold
 
-    # policy_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial2e+02_2022-05-10-16-29-47/policy.pth"
+    policy_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
+                 "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial2e+02_2022-05-10-16-29-47" \
+                 "/policy.pth"
+
+    load_policy = copy.deepcopy(policy)
+    model = torch.load(policy_pth)
+    inv_model_2 = Net(state_num * 2, action_num, hidden_sizes=[64, 64], device=args.device,
+                    softmax=True).to(args.device)
+    mask_model_2 = Net(state_num, action_num, hidden_sizes=[64, 64], device=args.device).to(args.device)
+
+    load_policy.inv_model = inv_model_2
+    load_policy.mask_model = mask_model_2
+
+    load_policy.load_state_dict(torch.load(policy_pth))
     #
-    # load_policy = copy.deepcopy(policy)
-    # model = torch.load(policy_pth)
-    # load_policy.load_state_dict(torch.load(policy_pth))
-    #
-    # policy.actor = copy.deepcopy(load_policy.actor)
+    policy.actor = copy.deepcopy(load_policy.actor)
+    # policy.inv_model = copy.deepcopy(load_policy.inv_model)
 
 
     # trainer

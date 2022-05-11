@@ -251,9 +251,42 @@ class MaskPPOPolicy(A2CPolicy):
                         # target = nn.functional.one_hot(b.act.long(), action_shape)
 
                         # for test
-                        # inv_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/chances8_maxstep400_acpenalty0_maskTrue_mf-100_totalinter20000000000_maskst10000000000_policyst10000000000_policyinitial750_2022-05-05-17-07-19/inv.pth"
-                        # load_model = torch.load(inv_path)
-                        # load_res = load_model(ss)
+                        inv_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
+                                   "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial0e+00_2022-05-10-20-07-06" \
+                                   "/inv.pth"
+                        load_model = torch.load(inv_path)
+                        load_res = load_model(ss)
+
+                        action_0_list = [[] for i in range(9)]
+                        action_1_list = [[] for i in range(9)]
+                        factor =torch.log(load_res[0] / self(b).logits)
+                        # for items in  factor:
+                        obs_copy = copy.deepcopy(b.obs)
+                        rank = np.argsort(obs_copy,axis=0)[:,-1]
+                        for i in rank:
+                            fuel = int(obs_copy[i,-1]*8)
+                            action_0_list[fuel].append(factor[i,0].item())
+                            action_1_list[fuel].append(factor[i,1].item())
+                            #print(obs_copy[i,-1])
+                        initial = 0
+                        width = 0.5
+
+                        plt.figure()
+                        #plt.subplot(1,2,1)
+                        for fuel in range(9):
+                            plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
+                            #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                            initial += len(action_0_list[fuel])
+                        # plt.show()
+                        plt.figure()
+                        # plt.subplot(1,2,1)
+                        for fuel in range(9):
+                            plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
+                                    width=width)
+                            # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                            initial += len(action_1_list[fuel])
+
+                        plt.show()
                         # print(load_res)
                         # print(b.act.long())
                         action_shape = self.actor.net.module.action_shape if torch.cuda.is_available() else self.actor.action_shape
