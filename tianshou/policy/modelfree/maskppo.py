@@ -242,7 +242,6 @@ class MaskPPOPolicy(A2CPolicy):
                        "/inv.pth"
             load_model = torch.load(inv_load_path)
             # load_res = load_model(ss)
-            self.inv_model = load_model
 
             if self.learn_index % total_update_interval < mask_update_start:
                 # 训练inv_model
@@ -257,50 +256,47 @@ class MaskPPOPolicy(A2CPolicy):
                         # action_shape = self.actor.net.module.action_shape if torch.cuda.is_available() else self.actor.action_shape
                         # target = nn.functional.one_hot(b.act.long(), action_shape)
 
-                        # for test
 
-
-
-                        # ---inv model plot in 05/11---
-
-                        action_0_list = [[] for i in range(9)]
-                        action_1_list = [[] for i in range(9)]
-                        load_res = load_model(ss)
-                        # KL factor
-                        factor =torch.log(load_res[0] / (self(b).logits+epsilon))
-                        # # TV factor
-                        # factor =  abs(self(b).logits / (load_res[0]+epsilon) - 1)
-
-                        # for items in  factor:
-                        obs_copy = copy.deepcopy(b.obs)
-                        rank = np.argsort(obs_copy,axis=0)[:,-1]
-                        for i in rank:
-                            fuel = int(obs_copy[i,-1]*8)
-                            action_0_list[fuel].append(factor[i,0].item())
-                            action_1_list[fuel].append(factor[i,1].item())
-                            #print(obs_copy[i,-1])
-                        initial = 0
-                        width = 0.5
-
-                        plt.figure()
-                        plt.title("action_0")
-
-                        for fuel in range(9):
-                            plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
-                            #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                            initial += len(action_0_list[fuel])
+                        # # ---inv model plot in 05/11---
+                        # # for test 测试训练好的inv model的表现
+                        # action_0_list = [[] for i in range(9)]
+                        # action_1_list = [[] for i in range(9)]
+                        # load_res = load_model(ss)
+                        # # KL factor
+                        # factor =torch.log(load_res[0])- torch.log(self(b).logits+epsilon)
+                        # # # TV factor
+                        # # factor =  abs(self(b).logits / (load_res[0]+epsilon) - 1)
+                        #
+                        # # for items in  factor:
+                        # obs_copy = copy.deepcopy(b.obs)
+                        # rank = np.argsort(obs_copy,axis=0)[:,-1]
+                        # for i in rank:
+                        #     fuel = int(obs_copy[i,-1]*8)
+                        #     action_0_list[fuel].append(factor[i,0].item())
+                        #     action_1_list[fuel].append(factor[i,1].item())
+                        #     #print(obs_copy[i,-1])
+                        # initial = 0
+                        # width = 0.5
+                        #
+                        # plt.figure()
+                        # plt.title("action_0")
+                        #
+                        # for fuel in range(9):
+                        #     plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
+                        #     #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                        #     initial += len(action_0_list[fuel])
+                        # # plt.show()
+                        # plt.figure()
+                        # plt.title("action_1")
+                        # # plt.subplot(1,2,1)
+                        # initial = 0
+                        # for fuel in range(9):
+                        #     plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
+                        #             width=width)
+                        #     # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                        #     initial += len(action_1_list[fuel])
+                        #
                         # plt.show()
-                        plt.figure()
-                        plt.title("action_1")
-                        # plt.subplot(1,2,1)
-                        initial = 0
-                        for fuel in range(9):
-                            plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
-                                    width=width)
-                            # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                            initial += len(action_1_list[fuel])
-
-                        plt.show()
                         # ---inv model plot in 05/11---
 
 
@@ -317,6 +313,10 @@ class MaskPPOPolicy(A2CPolicy):
                         inverse_losses.append(inv_loss.item())
                 print("learn_inv_inex:" + str(self.learn_index) + " inv_loss" + str(inv_loss.item()))
 
+            # ---train mask with fixed inv model in 05/12---
+            # for test
+            self.inv_model = load_model
+            # ---train mask with fixed inv model in 05/12---
 
             if policy_update_start > self.learn_index % total_update_interval >= mask_update_start:
                 #更新mask
@@ -348,15 +348,40 @@ class MaskPPOPolicy(A2CPolicy):
 
                         pred_pi_act = torch.masked_select(pi_a, action_one_hot)
                         # KL factor
-                        # indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
+                        indepence_factor = torch.log(pred_pi_act) - target_log_pia
                         # TV factor
-                        indepence_factor = abs(target_log_pia.exp().float() / (pred_pi_act+epsilon) - 1)
+                        # indepence_factor = abs(target_log_pia.exp().float() / (pred_pi_act+epsilon) - 1)
 
+                        #--- plot mask model in 5/12---
                         mask_load_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
-                                   "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst0e+00_policyst1e+10_policyinitial0e+00_2022-05-11-20-27-50" \
+                                   "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst0e+00_policyst1e+10_policyinitial0e+00_2022-05-12-15-18-46" \
                                    "/mask.pth"
                         mask_load_model = torch.load(mask_load_path)
+                        mask_load_all_res = mask_load_model(b.obs)[0]
+                        mask_load_current_res = torch.masked_select(mask_load_all_res, action_one_hot)
 
+                        mask_res_list = [[] for i in range(9)]
+                        obs_copy = copy.deepcopy(b.obs)
+                        rank = np.argsort(obs_copy, axis=0)[:, -1]
+                        for i in rank:
+                            fuel = int(obs_copy[i, -1] * 8)
+                            mask_res_list[fuel].append(mask_load_current_res[i].item())
+                            # action_1_list[fuel].append(factor[i, 1].item())
+                            # print(obs_copy[i,-1])
+                        initial = 0
+                        width = 0.5
+
+                        plt.figure()
+                        plt.title("mask")
+
+                        for fuel in range(9):
+                            plt.bar(range(initial, initial + len(mask_res_list[fuel])), mask_res_list[fuel],
+                                    width=width)
+                            # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                            initial += len(mask_res_list[fuel])
+
+                        plt.show()
+                        # --- plot mask model in 5/12---
                         mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
                         self.mask_optim.zero_grad()
                         mask_loss.backward()
