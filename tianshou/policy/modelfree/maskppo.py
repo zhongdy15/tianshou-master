@@ -236,8 +236,14 @@ class MaskPPOPolicy(A2CPolicy):
                 #ineversemodel是否需要重新初始化
                 pass
 
+            inv_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
+                       "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial0e+00_2022-05-10-20-07-06" \
+                       "/inv.pth"
+            load_model = torch.load(inv_path)
+            # load_res = load_model(ss)
+            self.inv_model = load_model
 
-            if self.learn_index % total_update_interval < policy_update_start:
+            if self.learn_index % total_update_interval < mask_update_start:
                 # 训练inv_model
                 for step in range(repeat):
                     for b in batch.split(batch_size, merge_last=True):
@@ -251,12 +257,7 @@ class MaskPPOPolicy(A2CPolicy):
                         # target = nn.functional.one_hot(b.act.long(), action_shape)
 
                         # for test
-                        inv_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
-                                   "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial0e+00_2022-05-10-20-07-06" \
-                                   "/inv.pth"
-                        load_model = torch.load(inv_path)
-                        load_res = load_model(ss)
-                        self.inv_model = load_model
+
 
 
                         # # ---inv model plot in 05/11---
