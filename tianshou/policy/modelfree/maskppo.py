@@ -236,10 +236,10 @@ class MaskPPOPolicy(A2CPolicy):
                 #ineversemodel是否需要重新初始化
                 pass
 
-            inv_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
+            inv_load_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
                        "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial0e+00_2022-05-10-20-07-06" \
                        "/inv.pth"
-            load_model = torch.load(inv_path)
+            load_model = torch.load(inv_load_path)
             # load_res = load_model(ss)
             self.inv_model = load_model
 
@@ -347,6 +347,10 @@ class MaskPPOPolicy(A2CPolicy):
                         # TV factor
                         indepence_factor = abs(target_log_pia.exp().float() / (pred_pi_act+epsilon) - 1)
 
+                        mask_load_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
+                                   "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst0e+00_policyst1e+10_policyinitial0e+00_2022-05-11-20-27-50" \
+                                   "/mask.pth"
+                        mask_load_model = torch.load(mask_path)
 
                         mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
                         self.mask_optim.zero_grad()

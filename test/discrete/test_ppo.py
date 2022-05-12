@@ -96,9 +96,9 @@ def get_args():
     # print("73")
     # print(args.mask)
     # print(args.max_lenth)
-    # args.mask = True
-    # args.policy_learn_initial = 0
-    # args.mask_update_start = 0
+    args.mask = True
+    args.policy_learn_initial = 0
+    args.mask_update_start = 0
     # args.epoch = 60
     # args.max_lenth = 200
     return args
