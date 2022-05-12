@@ -150,6 +150,7 @@ class MaskPPOPolicy(A2CPolicy):
         actor_path = os.path.join(self.save_dir, 'actor.pth')
         # torch.save(self.inv_model, inv_path)
         # new_model = torch.load(inv_path)
+        fig_save_interval = 20
 
 
         #---todo in 4/28---
@@ -245,8 +246,10 @@ class MaskPPOPolicy(A2CPolicy):
 
             if self.learn_index % total_update_interval < mask_update_start:
                 # 训练inv_model
+                fig_save_index = 0
                 for step in range(repeat):
                     for b in batch.split(batch_size, merge_last=True):
+                        fig_save_index += 1
                         # 考虑采用状态的差作为输入
                         # ss = np.concatenate((b.obs, b.obs_next), axis=1)
                         delta_s = b.obs_next - b.obs
@@ -257,47 +260,56 @@ class MaskPPOPolicy(A2CPolicy):
                         # target = nn.functional.one_hot(b.act.long(), action_shape)
 
 
-                        # # ---inv model plot in 05/11---
-                        # # for test 测试训练好的inv model的表现
-                        # action_0_list = [[] for i in range(9)]
-                        # action_1_list = [[] for i in range(9)]
-                        # load_res = load_model(ss)
-                        # # KL factor
-                        # factor =torch.log(load_res[0])- torch.log(self(b).logits+epsilon)
-                        # # # TV factor
-                        # # factor =  abs(self(b).logits / (load_res[0]+epsilon) - 1)
-                        #
-                        # # for items in  factor:
-                        # obs_copy = copy.deepcopy(b.obs)
-                        # rank = np.argsort(obs_copy,axis=0)[:,-1]
-                        # for i in rank:
-                        #     fuel = int(obs_copy[i,-1]*8)
-                        #     action_0_list[fuel].append(factor[i,0].item())
-                        #     action_1_list[fuel].append(factor[i,1].item())
-                        #     #print(obs_copy[i,-1])
-                        # initial = 0
-                        # width = 0.5
-                        #
-                        # plt.figure()
-                        # plt.title("action_0")
-                        #
-                        # for fuel in range(9):
-                        #     plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
-                        #     #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                        #     initial += len(action_0_list[fuel])
-                        # # plt.show()
-                        # plt.figure()
-                        # plt.title("action_1")
-                        # # plt.subplot(1,2,1)
-                        # initial = 0
-                        # for fuel in range(9):
-                        #     plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
-                        #             width=width)
-                        #     # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                        #     initial += len(action_1_list[fuel])
-                        #
-                        # plt.show()
                         # ---inv model plot in 05/11---
+                        # for test 测试训练好的inv model的表现
+                        action_0_list = [[] for i in range(9)]
+                        action_1_list = [[] for i in range(9)]
+                        load_res = load_model(ss)
+                        # KL factor
+                        factor =torch.log(load_res[0])- torch.log(self(b).logits+epsilon)
+                        # # TV factor
+                        # factor =  abs(self(b).logits / (load_res[0]+epsilon) - 1)
+
+                        # for items in  factor:
+                        obs_copy = copy.deepcopy(b.obs)
+                        rank = np.argsort(obs_copy,axis=0)[:,-1]
+                        for i in rank:
+                            fuel = int(obs_copy[i,-1]*8)
+                            action_0_list[fuel].append(factor[i,0].item())
+                            action_1_list[fuel].append(factor[i,1].item())
+                            #print(obs_copy[i,-1])
+                        initial = 0
+                        width = 0.5
+
+                        plt.cla()
+                        plt.figure()
+                        plt.title("action_0")
+
+                        for fuel in range(9):
+                            plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
+                            #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                            initial += len(action_0_list[fuel])
+                        # plt.show()
+                        inv_dir = os.path.join(self.save_dir, 'inv')
+                        if not os.path.isdir(inv_dir):
+                            os.makedirs(inv_dir)
+                        if fig_save_index % fig_save_interval == 0:
+                            plt.savefig(os.path.join(inv_dir, "action0_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
+
+                        plt.cla()
+                        plt.figure()
+                        plt.title("action_1")
+                        # plt.subplot(1,2,1)
+                        initial = 0
+                        for fuel in range(9):
+                            plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
+                                    width=width)
+                            # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                            initial += len(action_1_list[fuel])
+                        if fig_save_index % fig_save_interval == 0:
+                            plt.savefig(os.path.join(inv_dir, "action1_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
+                        # plt.show()
+                        #---inv model plot in 05/11---
 
 
                         # print(load_res)
@@ -320,10 +332,12 @@ class MaskPPOPolicy(A2CPolicy):
 
             if policy_update_start > self.learn_index % total_update_interval >= mask_update_start:
                 #更新mask
-                epsilon = 1e-5
-
+                # epsilon = 1e-5
+                fig_save_index = 0
                 for step in range(repeat):
+
                     for b in batch.split(batch_size, merge_last=True):
+                        fig_save_index +=1
                         # 利用p(a|s,s')学习mask(s,a)
                         #---todo in 04/29---
                         #学习mask(s,a),并且查看流程训练的步骤
@@ -370,7 +384,7 @@ class MaskPPOPolicy(A2CPolicy):
                             # print(obs_copy[i,-1])
                         initial = 0
                         width = 0.5
-
+                        plt.cla()
                         plt.figure()
                         plt.title("mask")
 
@@ -380,7 +394,12 @@ class MaskPPOPolicy(A2CPolicy):
                             # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
                             initial += len(mask_res_list[fuel])
 
-                        plt.show()
+                        mask_dir = os.path.join(self.save_dir, 'mask')
+                        if not os.path.isdir(mask_dir):
+                            os.makedirs(mask_dir)
+                        if fig_save_index % fig_save_interval == 0:
+                            plt.savefig(os.path.join(mask_dir,"mask_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
+                        # plt.show()
                         # --- plot mask model in 5/12---
                         mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
                         self.mask_optim.zero_grad()

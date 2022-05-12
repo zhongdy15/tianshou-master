@@ -98,7 +98,7 @@ def get_args():
     # print(args.max_lenth)
     args.mask = True
     args.policy_learn_initial = 0
-    args.mask_update_start = 0
+    args.mask_update_start = 10
     # args.epoch = 60
     # args.max_lenth = 200
     return args
