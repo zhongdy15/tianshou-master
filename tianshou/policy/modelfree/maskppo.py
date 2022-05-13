@@ -238,10 +238,10 @@ class MaskPPOPolicy(A2CPolicy):
                 #ineversemodel是否需要重新初始化
                 pass
 
-            inv_load_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
-                       "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial0e+00_2022-05-10-20-07-06" \
-                       "/inv.pth"
-            load_model = torch.load(inv_load_path)
+            # inv_load_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
+            #            "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial0e+00_2022-05-10-20-07-06" \
+            #            "/inv.pth"
+            # load_model = torch.load(inv_load_path)
             # load_res = load_model(ss)
 
             if self.learn_index % total_update_interval < mask_update_start:
@@ -262,9 +262,11 @@ class MaskPPOPolicy(A2CPolicy):
 
                         # ---inv model plot in 05/11---
                         # for test 测试训练好的inv model的表现
+
                         action_0_list = [[] for i in range(9)]
                         action_1_list = [[] for i in range(9)]
-                        load_res = load_model(ss)
+                        with torch.no_grad():
+                            load_res = pred
                         # KL factor
                         factor =torch.log(load_res[0])- torch.log(self(b).logits+epsilon)
                         # # TV factor
@@ -327,7 +329,7 @@ class MaskPPOPolicy(A2CPolicy):
 
             # ---train mask with fixed inv model in 05/12---
             # for test
-            self.inv_model = load_model
+            # self.inv_model = load_model
             # ---train mask with fixed inv model in 05/12---
 
             if policy_update_start > self.learn_index % total_update_interval >= mask_update_start:
@@ -367,13 +369,15 @@ class MaskPPOPolicy(A2CPolicy):
                         # indepence_factor = abs(target_log_pia.exp().float() / (pred_pi_act+epsilon) - 1)
 
                         #--- plot mask model in 5/12---
-                        mask_load_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
-                                   "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst0e+00_policyst1e+10_policyinitial0e+00_2022-05-12-15-18-46" \
-                                   "/mask.pth"
-                        mask_load_model = torch.load(mask_load_path)
-                        mask_load_all_res = mask_load_model(b.obs)[0]
-                        mask_load_current_res = torch.masked_select(mask_load_all_res, action_one_hot)
+                        # mask_load_path = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
+                        #            "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst0e+00_policyst1e+10_policyinitial0e+00_2022-05-12-15-18-46" \
+                        #            "/mask.pth"
+                        # mask_load_model = torch.load(mask_load_path)
+                        # mask_load_all_res = mask_load_model(b.obs)[0]
+                        # mask_load_current_res = torch.masked_select(mask_load_all_res, action_one_hot)
 
+                        with torch.no_grad():
+                            mask_load_current_res = mask_pred_current_action
                         mask_res_list = [[] for i in range(9)]
                         obs_copy = copy.deepcopy(b.obs)
                         rank = np.argsort(obs_copy, axis=0)[:, -1]
