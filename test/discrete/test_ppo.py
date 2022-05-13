@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '4,6,7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
