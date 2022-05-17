@@ -44,7 +44,8 @@ class Actor(nn.Module):
         softmax_output: bool = True,
         preprocess_net_output_dim: Optional[int] = None,
         device: Union[str, int, torch.device] = "cpu",
-        mask: bool = False
+        mask: bool = False,
+        mask_factor: float = -1e10
     ) -> None:
         super().__init__()
         self.device = device
@@ -71,6 +72,7 @@ class Actor(nn.Module):
         self.target = None
         self.max_lenth = 200
         self.action_chances = 8
+        self.mask_factor = mask_factor
 
     def state_to_int(self,state):
         # 对于离散环境，把状态对应到int值上去
@@ -100,7 +102,7 @@ class Actor(nn.Module):
         #         [-0.0202, -0.1122]])
         logits = F.softmax(logits, dim=-1)
         invalid_action_masks = torch.ones_like(logits)
-        r = -1e10
+        r = self.mask_factor
         # print(logits.shape)
         # s:ndarry,和logits行数相同，最后一列是燃料剩余量
         # [[0.11000,0.00000,1.00000],

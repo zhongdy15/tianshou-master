@@ -150,7 +150,7 @@ class MaskPPOPolicy(A2CPolicy):
         actor_path = os.path.join(self.save_dir, 'actor.pth')
         # torch.save(self.inv_model, inv_path)
         # new_model = torch.load(inv_path)
-        fig_save_interval = 60
+        fig_save_interval = 120
 
 
         #---todo in 4/28---

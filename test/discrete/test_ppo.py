@@ -157,13 +157,13 @@ def test_ppo(args=get_args()):
         # print("cuda is available")
         # print(args.mask)
         actor = DataParallelNet(
-            Actor(net, args.action_shape, device=args.device, mask=args.mask).to(args.device)
+            Actor(net, args.action_shape, device=args.device, mask=args.mask, mask_factor= args.mask_factor).to(args.device)
         )
         critic = DataParallelNet(Critic(net, device=args.device).to(args.device))
     else:
         # print("cuda is not available")
         # print(args.mask)
-        actor = Actor(net, args.action_shape, device=args.device, mask=args.mask).to(args.device)
+        actor = Actor(net, args.action_shape, device=args.device, mask=args.mask, mask_factor= args.mask_factor).to(args.device)
         critic = Critic(net, device=args.device).to(args.device)
     actor_critic = ActorCritic(actor, critic)
     # orthogonal initialization
