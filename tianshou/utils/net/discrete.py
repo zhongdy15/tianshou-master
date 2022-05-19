@@ -74,6 +74,8 @@ class Actor(nn.Module):
         self.action_chances = 8
         self.mask_factor = mask_factor
 
+        self.use_prior_mask = True
+
     def state_to_int(self,state):
         # 对于离散环境，把状态对应到int值上去
         max_lenth = self.max_lenth
@@ -201,7 +203,18 @@ class Actor(nn.Module):
                 #     logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
                 # logits = F.softmax(logits, dim=-1)
             else:
-                logits = F.softmax(logits, dim=-1)
+                # 用燃料的先验来制作mask
+                invalid_action_masks = torch.ones_like(logits)
+                if self.use_prior_mask:
+                    for index in range(s.shape[0]):
+                        # 如果没有燃料了，mask就置0一个动作
+                        if s[index][-1] <= 1e-5:
+                            invalid_action_masks[index][-1] = 0
+                        invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                        logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                    logits = F.softmax(logits, dim=-1)
+                else:
+                    logits = F.softmax(logits, dim=-1)
         return logits, h
 
 
