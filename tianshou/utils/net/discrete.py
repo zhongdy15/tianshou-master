@@ -124,6 +124,12 @@ class Actor(nn.Module):
                 else:
                     invalid_action_masks = torch.ones_like(logits)
 
+                for index in range(s.shape[0]):
+                        #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
+                    if sum(invalid_action_masks[index]) <= 1e-5:
+                        # print("there is no action")
+                        invalid_action_masks[index][0] = 1
+
                 # print("!!!device!!!" + self.device)
                 invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
