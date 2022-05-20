@@ -238,6 +238,10 @@ class PPOPolicy(A2CPolicy):
                 loss = clip_loss + self._weight_vf * vf_loss \
                     - self._weight_ent * ent_loss
                 self.optim.zero_grad()
+                # clip_loss.backward()
+                # vf_loss.backward()
+                # ent_loss.backward()
+
                 loss.backward()
                 if self._grad_norm:  # clip large gradient
                     nn.utils.clip_grad_norm_(
