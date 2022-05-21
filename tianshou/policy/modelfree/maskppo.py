@@ -283,7 +283,7 @@ class MaskPPOPolicy(A2CPolicy):
                         initial = 0
                         width = 0.5
 
-                        plt.cla()
+                        plt.close()
                         plt.figure()
                         plt.title("action_0")
 
@@ -297,8 +297,8 @@ class MaskPPOPolicy(A2CPolicy):
                             os.makedirs(inv_dir)
                         if fig_save_index % fig_save_interval == 0:
                             plt.savefig(os.path.join(inv_dir, "action0_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
-
-                        plt.cla()
+                            plt.close()
+                        plt.close()
                         plt.figure()
                         plt.title("action_1")
                         # plt.subplot(1,2,1)
@@ -310,6 +310,7 @@ class MaskPPOPolicy(A2CPolicy):
                             initial += len(action_1_list[fuel])
                         if fig_save_index % fig_save_interval == 0:
                             plt.savefig(os.path.join(inv_dir, "action1_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
+                            plt.close()
                         # plt.show()
                         #---inv model plot in 05/11---
 
@@ -388,7 +389,7 @@ class MaskPPOPolicy(A2CPolicy):
                             # print(obs_copy[i,-1])
                         initial = 0
                         width = 0.5
-                        plt.cla()
+                        plt.close()
                         plt.figure()
                         plt.title("mask")
 
@@ -403,6 +404,7 @@ class MaskPPOPolicy(A2CPolicy):
                             os.makedirs(mask_dir)
                         if fig_save_index % fig_save_interval == 0:
                             plt.savefig(os.path.join(mask_dir,"mask_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
+                            plt.close()
                         # plt.show()
                         # --- plot mask model in 5/12---
                         mask_loss = (mask_pred_current_action - indepence_factor).pow(2).mean()
