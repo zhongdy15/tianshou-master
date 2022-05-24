@@ -316,7 +316,7 @@ class RunningMan(gym.Env):
                 if rand_float < p:
                     done = True
                     self.life = 0
-                    reward = -100
+                    reward = -100 * (1-self.obs[0])
                 else:
                     # 自动向前走
                     x, y = self.state
