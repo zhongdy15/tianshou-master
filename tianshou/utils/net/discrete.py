@@ -74,7 +74,7 @@ class Actor(nn.Module):
         self.action_chances = 8
         self.mask_factor = mask_factor
 
-        self.use_prior_mask = True
+        self.use_prior_mask = False
 
     def state_to_int(self,state):
         # 对于离散环境，把状态对应到int值上去
