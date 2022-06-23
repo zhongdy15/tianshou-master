@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '6,2'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -28,11 +28,12 @@ from tianshou.utils.net.discrete import Actor, Critic
 
 from tianshou.env import RunningMan
 #from minessweeper import RunningMan
+from test_wrapper import ActionBudgetWrapper
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='RunningShooter')#CartPole-v0 RunningShooter
+    parser.add_argument('--task', type=str, default='CartPole-v1')#CartPole-v0 RunningShooter
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--buffer-size', type=int, default=20000)
     parser.add_argument('--lr', type=float, default=3e-4)
@@ -52,7 +53,7 @@ def get_args():
     )
 
     # runningman special
-    parser.add_argument('--initial_chances', type=int, default=8,
+    parser.add_argument('--initial_chances', type=int, default=800,
                         help='chances for agent to act')
     parser.add_argument('--dist_interval', type=int, default=1,
                         help='interval for target appear')
@@ -92,17 +93,6 @@ def get_args():
 
 
     args = parser.parse_known_args()[0]
-    # print("!!!!device!!!"+args.device)
-    # print("73")
-    # print(args.mask)
-    # print(args.max_lenth)
-    # args.mask = True
-    # args.policy_learn_initial = 3
-    # args.total_update_interval = 8
-    # args.mask_update_start = 3
-    # args.policy_update_start = 5
-    # args.epoch = 60
-    # args.max_lenth = 200
     return args
 
 
@@ -112,6 +102,10 @@ def env_make(task, args=get_args()):
         # print(args.max_lenth)
         env = RunningMan(initial_chances=args.initial_chances, dist_interval=args.dist_interval,
                          max_step=args.max_lenth, action_penalty=args.action_penalty)
+    elif task.split("_")[0] == "ActionBudget":
+        env = gym.make(task.split("_")[1])
+        env = ActionBudgetWrapper(env,action_budget=args.initial_chances)
+        #env = gym.make(task)
     else:
         env = gym.make(task)
     return env
@@ -177,15 +171,24 @@ def test_ppo(args=get_args()):
 
     dist = torch.distributions.Categorical
 
+    # log_name = "chances" + str(args.initial_chances) + '_' \
+    #            "maxstep" + str(args.max_lenth) + '_' + \
+    #            "acpenalty" + str(args.action_penalty) + '_' +\
+    #            "mask" + str(args.mask) + '_' + \
+    #            "mf" + str('{:.0e}'.format(args.mask_factor)) + '_' + \
+    #            "totalinter" + str('{:.0e}'.format(args.total_update_interval)) + '_' + \
+    #            "maskst" + str('{:.0e}'.format(args.mask_update_start)) + '_' + \
+    #            "policyst" + str('{:.0e}'.format(args.policy_update_start)) + '_' + \
+    #            "policyinitial" + str('{:.0e}'.format(args.policy_learn_initial)) + '_' + \
+    #            time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
+    actionbudget_flag = False
+    if args.task.split("_")[0] =="ActionBudget":
+        actionbudget_flag = True
+
+    ab_str = "actionbudget"+str(args.initial_chances)+"_" if actionbudget_flag else ""
     log_name = "chances" + str(args.initial_chances) + '_' \
-               "maxstep" + str(args.max_lenth) + '_' + \
-               "acpenalty" + str(args.action_penalty) + '_' +\
                "mask" + str(args.mask) + '_' + \
-               "mf" + str('{:.0e}'.format(args.mask_factor)) + '_' + \
-               "totalinter" + str('{:.0e}'.format(args.total_update_interval)) + '_' + \
-               "maskst" + str('{:.0e}'.format(args.mask_update_start)) + '_' + \
-               "policyst" + str('{:.0e}'.format(args.policy_update_start)) + '_' + \
-               "policyinitial" + str('{:.0e}'.format(args.policy_learn_initial)) + '_' + \
+               ab_str + \
                time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
     log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
@@ -260,7 +263,7 @@ def test_ppo(args=get_args()):
         torch.save(policy.state_dict(), os.path.join(log_path, 'policy.pth'))
 
     def stop_fn(mean_rewards):
-        return mean_rewards >= 110 #env.spec.reward_threshold
+        return mean_rewards >= env.spec.reward_threshold
 
     # # ---for test fixed policy---
     # policy_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \

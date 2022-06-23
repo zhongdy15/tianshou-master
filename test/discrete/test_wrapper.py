@@ -25,28 +25,28 @@ class ActionBudgetWrapper(gym.Wrapper):
         self.action_budget_remain = self.action_budget
         return observation
 
+if __name__ == '__main__':
+    env = gym.make("CartPole-v1")
+    env = ActionBudgetWrapper(env,action_budget=4)
 
+    env.action_space.seed(42)
+    # print(env.spec.reward_threshold)
+    observation= env.reset()
 
-env = gym.make("CartPole-v1")
-env = ActionBudgetWrapper(env,action_budget=4)
+    for _ in range(1000):
+        a = input("action:")
+        if a == "a":
+            action = 0
+        else:
+            action = 1
+        #action = env.action_space.sample()
+        print("action: "+str(action)+" fuel:"+str(env.action_budget_remain))
+        observation, reward, done, info = env.step(action)
+        print(env.spec.reward_threshold)
+        env.render()
 
-env.action_space.seed(42)
+        if done:
+            print("done!")
+            observation= env.reset()
 
-observation= env.reset()
-
-for _ in range(1000):
-    a = input("action:")
-    if a == "a":
-        action = 0
-    else:
-        action = 1
-    #action = env.action_space.sample()
-    print("action: "+str(action)+" fuel:"+str(env.action_budget_remain))
-    observation, reward, done, info = env.step(action)
-    env.render()
-
-    if done:
-        print("done!")
-        observation= env.reset()
-
-env.close()
+    env.close()
