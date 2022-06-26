@@ -33,7 +33,7 @@ from test_wrapper import ActionBudgetWrapper
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='CartPole-v1')#CartPole-v0 RunningShooter
+    parser.add_argument('--task', type=str, default='ActionBudget_CartPole-v1')#CartPole-v0 RunningShooter
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--buffer-size', type=int, default=20000)
     parser.add_argument('--lr', type=float, default=3e-4)
@@ -93,6 +93,12 @@ def get_args():
 
 
     args = parser.parse_known_args()[0]
+    args.mask = True
+    args.policy_learn_initial = 3
+    args.total_update_interval = 8
+    args.mask_update_start = 3
+    args.policy_update_start = 5
+    args.epoch = 60
     return args
 
 
