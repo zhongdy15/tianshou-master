@@ -7,8 +7,7 @@ from torch import nn
 
 from tianshou.data import Batch
 from tianshou.utils.net.common import MLP
-import matplotlib.pyplot as plt
-from tianshou.env import RunningMan
+
 
 class Actor(nn.Module):
     """Simple actor network.
@@ -44,44 +43,14 @@ class Actor(nn.Module):
         softmax_output: bool = True,
         preprocess_net_output_dim: Optional[int] = None,
         device: Union[str, int, torch.device] = "cpu",
-        mask: bool = False,
-        mask_factor: float = -1e10
     ) -> None:
         super().__init__()
         self.device = device
-        # print("line51__device:"+str(device))
         self.preprocess = preprocess_net
-        self.action_shape = action_shape
         self.output_dim = int(np.prod(action_shape))
-        # 这里网络直接输出相当于是每一维动作可选动作数量的乘积
-        # mask的时候就需要注意，之后在开发
         input_dim = getattr(preprocess_net, "output_dim", preprocess_net_output_dim)
         self.last = MLP(input_dim, self.output_dim, hidden_sizes, device=self.device)
         self.softmax_output = softmax_output
-
-        self.mask_model = None
-        self.mask = mask
-        # self.cal_ss = None
-        # self.cal_ssa = None
-        # self.cal_sa = None
-        # self.fuel_C_phi = [[0.0,] for i in range(9)]
-        self.index = 0
-        # todo:
-        #
-        # self.env_for_singlestepsim = RunningMan()
-        # self.target = None
-        # self.max_lenth = 200
-        # self.action_chances = 8
-        self.mask_factor = mask_factor
-
-        self.use_prior_mask = True
-        self.default_actionindex = 0
-
-
-    # def fuel_mask(self,state):
-    #     max_lenth = self.max_lenth
-    #     action_chances = self.action_chances
-
 
     def forward(
         self,
@@ -92,59 +61,6 @@ class Actor(nn.Module):
         r"""Mapping: s -> Q(s, \*)."""
         logits, h = self.preprocess(s, state)
         logits = self.last(logits)
-        # logits: 也许很多行
-        # tensor([[-0.0378, -0.0917],
-        #         [-0.0202, -0.1122]])
-        # logits = F.softmax(logits, dim=-1)
-        invalid_action_masks = torch.ones_like(logits)
-        r = self.mask_factor
-        # print(logits.shape)
-        # s:ndarry,和logits行数相同，最后一列是燃料剩余量
-        # [[0.11000,0.00000,1.00000],
-        # [0.11000,1.00000,1.00000]]
-        if self.mask:
-            if self.use_prior_mask:
-                # print("use prior mask!!")
-                if "fuel_remain" in info.keys():
-                    fuel_remain = info["fuel_remain"]
-                    fuel_flag = fuel_remain > 0
-                    fuel_flag = torch.tensor(fuel_flag).to(self.device)
-                else:
-                    fuel_flag = torch.ones(s.shape[0]).type(torch.BoolTensor).to(self.device)
-
-
-                # print(fuel_flag)
-                for ii in range(s.shape[0]):
-                    if fuel_flag[ii]:
-                        invalid_action_masks[ii] = 1
-                    else:
-                        invalid_action_masks[ii] = 0
-                        invalid_action_masks[ii][self.default_actionindex] = 1
-
-                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
-                # logits_clone = logits.clone()
-                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
-            else:
-                if self.mask_model:
-                    # print("use auto mask!!")
-                    Mask_value = self.mask_model(s)[0]
-                    invalid_action_masks = torch.where(Mask_value < r, torch.zeros_like(logits), torch.ones_like(logits))
-                else:
-                    invalid_action_masks = torch.ones_like(logits)
-
-                for index in range(s.shape[0]):
-                        #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
-                    if sum(invalid_action_masks[index]) <= 1e-5:
-                        # print("there is no action")
-                        invalid_action_masks[index][0] = 1
-
-                # print("!!!device!!!" + self.device)
-                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
-                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
-
-        else:
-            pass
-
         if self.softmax_output:
             logits = F.softmax(logits, dim=-1)
         return logits, h
@@ -464,34 +380,3 @@ def sample_noise(model: nn.Module) -> bool:
             m.sample()
             done = True
     return done
-
-def correlation_dist(v1, v2):
-    A_v1 = cal_A(v1)
-    A_v2 = cal_A(v2)
-
-    X_dot_Y = A_v1 * A_v2
-    X_dot_X = A_v1 * A_v1
-    Y_dot_Y = A_v2 * A_v2
-
-    if np.sqrt(np.mean(X_dot_X) * np.mean(Y_dot_Y)) <= 1e-7:
-        r = 0
-    else:
-        r = np.mean(X_dot_Y) / np.sqrt(np.mean(X_dot_X) *np.mean(Y_dot_Y))
-
-    return r
-def cal_A(v):
-    # num为数据的条数，p是数据的维度
-    [num, p] = v.shape
-    matrix_v = np.zeros([num, num])
-    for i in range(num):
-        for j in range(i, num):
-            delta = v[i] - v[j]
-            matrix_v[i][j] = np.linalg.norm(delta, ord=p)
-            matrix_v[j][i] = matrix_v[i][j]
-    row_mean = np.mean(matrix_v, axis=1)
-    row_mean = np.repeat(np.expand_dims(row_mean, axis=1), num, axis=1)
-    col_mean = np.mean(matrix_v, axis=0)
-    col_mean = np.repeat(np.expand_dims(col_mean, axis=0), num, axis=0)
-    total_mean = np.mean(matrix_v)
-    A_v1 = matrix_v - row_mean - col_mean + total_mean
-    return  A_v1

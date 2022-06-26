@@ -75,7 +75,6 @@ class Actor(nn.Module):
         self.mask_factor = mask_factor
 
         self.use_prior_mask = True
-        self.default_actionindex = 0
 
 
     # def fuel_mask(self,state):
@@ -104,29 +103,17 @@ class Actor(nn.Module):
         # [0.11000,1.00000,1.00000]]
         if self.mask:
             if self.use_prior_mask:
-                # print("use prior mask!!")
-                if "fuel_remain" in info.keys():
-                    fuel_remain = info["fuel_remain"]
-                    fuel_flag = fuel_remain > 0
-                    fuel_flag = torch.tensor(fuel_flag).to(self.device)
-                else:
-                    fuel_flag = torch.ones(s.shape[0]).type(torch.BoolTensor).to(self.device)
-
-
-                # print(fuel_flag)
-                for ii in range(s.shape[0]):
-                    if fuel_flag[ii]:
-                        invalid_action_masks[ii] = 1
-                    else:
-                        invalid_action_masks[ii] = 0
-                        invalid_action_masks[ii][self.default_actionindex] = 1
+                for index in range(s.shape[0]):
+                    # 如果没有燃料了，mask就置0一个动作
+                    if s[index][-1] <= 1e-5:
+                        invalid_action_masks[index][-1] = 0
 
                 invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
                 # logits_clone = logits.clone()
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
             else:
                 if self.mask_model:
-                    # print("use auto mask!!")
+                    # print("use mask!!")
                     Mask_value = self.mask_model(s)[0]
                     invalid_action_masks = torch.where(Mask_value < r, torch.zeros_like(logits), torch.ones_like(logits))
                 else:
@@ -147,6 +134,129 @@ class Actor(nn.Module):
 
         if self.softmax_output:
             logits = F.softmax(logits, dim=-1)
+
+
+
+
+
+
+
+
+
+        if self.softmax_output:
+            if self.mask:
+                # ---todo in 05/02---
+                # 根据已有的mask_model,算出M(s,a)
+                # 判断M(s,a)和fuel的关系
+                # 根据mask_model算出来的值，硬mask掉动作
+                # 软mask掉动作
+                # ---todo in 05/02---
+                if self.mask_model:
+                    # print("use mask!!")
+                    Mask_value = self.mask_model(s)[0]
+                    invalid_action_masks = torch.where(Mask_value < r, torch.zeros_like(logits), torch.ones_like(logits))
+                else:
+                    invalid_action_masks = torch.ones_like(logits)
+
+                for index in range(s.shape[0]):
+                        #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
+                    if sum(invalid_action_masks[index]) <= 1e-5:
+                        # print("there is no action")
+                        invalid_action_masks[index][0] = 1
+
+                # print("!!!device!!!" + self.device)
+                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+
+                logits = F.softmax(logits, dim=-1)
+
+                # # 针对燃料受限制的问题，把燃料为0的时候的动作全mask掉
+                # # s[i,-1] <= 1e-5 时，mask[i]=[1,0]
+                # # else , mask[i] = [1,1]
+                # # logits = mask dot logits
+                # invalid_action_masks = torch.ones_like(logits)
+                # if self.cal_ssa is None or self.cal_ssa is None or self.cal_sa is None:
+                #     pass
+                #     # invalid_action_masks = torch.ones_like(logits)
+                # else:
+                #     state_discrete_num = self.state_to_int([1, 1, 1]) + 1
+                #     epsilon = 0.6
+                #
+                #     for index in range(s.shape[0]):
+                #         # index 是指 在s里的多个状态的index顺序
+                #         st_index = self.state_to_int(s[index])
+                #         #st_index 是指某个状态对应的离散值
+                #         for at_index in range(self.action_shape):
+                #             c_phi_max = -1.0
+                #             for st_next_index in range(1, state_discrete_num):
+                #             # 对所有的后续状态来说
+                #                 first_identifier = 0
+                #                 if self.cal_ss[st_index][st_next_index] > 0:
+                #                     first_identifier = 1
+                #                     p2 = self.cal_ssa[st_index][st_next_index][at_index] / self.cal_ss[st_index][st_next_index]
+                #                     logits = F.softmax(logits, dim=-1)
+                #                     pi_p = logits[index][at_index].exp().float()
+                #                     C_phi = p2 / pi_p - 1
+                #                     C_phi = first_identifier * abs(C_phi.item())
+                #                 else:
+                #                     first_identifier = 0
+                #                     C_phi = -1.0
+                #
+                #
+                #
+                #
+                #
+                #                 if C_phi > c_phi_max:
+                #                     c_phi_max = C_phi
+                #                     #print("c_phi_max:", c_phi_max)
+                #             #分别统计 fuel剩余燃料不同时候的c_phi_average
+                #             #print("index",index)
+                #             #print("fuel",s[index][-1])
+                #             #print("c_phi_max:", c_phi_max)
+                #             #统计fuel数与c_phi_max的关系：fuel剩余不同数目时的c_phi_max值
+                #
+                #             self.fuel_C_phi[int(8 * s[index][-1])].append(c_phi_max)
+                #             fuel_average_C_phi = [np.average(self.fuel_C_phi[i]) for i in range(9)]
+                #
+                #             plt.bar(range(len(fuel_average_C_phi)), fuel_average_C_phi)
+                #             #plt.legend()
+                #             if self.index % 5000 == 0:
+                #                 plt.savefig('fig_{}.jpg'.format(str(self.index)))
+                #             self.index += 1
+                #             #plt.plot(range(9),fuel_average_C_phi)
+                #             plt.close()
+                #
+                #
+                #             if c_phi_max < epsilon:
+                #                 #pass
+                #                 #如果index对应的状态下做at_index的动作无效，加一个mask
+                #                 invalid_action_masks[index][at_index] = 0
+                #     for index in range(s.shape[0]):
+                #         #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
+                #         if sum(invalid_action_masks[index]) <= 1e-5:
+                #
+                #             invalid_action_masks[index][0] = 1
+                # # for index in range(s.shape[0]):
+                # #     if s[index][-1] <= 1e-5:
+                # #         invalid_action_masks[index][-1] = 0
+                #     invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                #     logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                # logits = F.softmax(logits, dim=-1)
+            else:
+                # 用燃料的先验来制作mask
+                #invalid_action_masks = torch.ones_like(logits)
+                if self.use_prior_mask:
+                    for index in range(s.shape[0]):
+                        # 如果没有燃料了，mask就置0一个动作
+                        if s[index][-1] <= 1e-5:
+                            invalid_action_masks[index][-1] = 0
+
+                    invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                        #logits_clone = logits.clone()
+                    logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                    logits = F.softmax(logits, dim=-1)
+                else:
+                    logits = F.softmax(logits, dim=-1)
         return logits, h
 
 
