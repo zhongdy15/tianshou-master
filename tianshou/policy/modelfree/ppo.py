@@ -213,6 +213,7 @@ class PPOPolicy(A2CPolicy):
                 if self._norm_adv:
                     mean, std = b.adv.mean(), b.adv.std()
                     b.adv = (b.adv - mean) / std  # per-batch norm
+
                 ratio = (dist.log_prob(b.act) - b.logp_old).exp().float()
                 ratio = ratio.reshape(ratio.size(0), -1).transpose(0, 1)
                 surr1 = ratio * b.adv
@@ -224,6 +225,14 @@ class PPOPolicy(A2CPolicy):
                 else:
                     clip_loss = -torch.min(surr1, surr2).mean()
                 # calculate loss for critic
+                if clip_loss.item() > 1e4 or clip_loss.item() < -1e4:
+                    print("clip_loss error in ppo.py:230")
+                    print(clip_loss)
+
+                #
+                # if min(b.info['fuel_remain']) == 0:
+                #     print("remin_nothing")
+
                 value = self.critic(b.obs).flatten()
                 if self._value_clip:
                     v_clip = b.v_s + (value -
@@ -255,6 +264,7 @@ class PPOPolicy(A2CPolicy):
         # update learning rate if lr_scheduler is given
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
+
 
         return {
             "loss": losses,

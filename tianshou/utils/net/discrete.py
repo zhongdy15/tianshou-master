@@ -66,6 +66,7 @@ class Actor(nn.Module):
         # self.cal_sa = None
         # self.fuel_C_phi = [[0.0,] for i in range(9)]
         self.index = 0
+
         # todo:
         #
         # self.env_for_singlestepsim = RunningMan()
@@ -96,14 +97,23 @@ class Actor(nn.Module):
         # tensor([[-0.0378, -0.0917],
         #         [-0.0202, -0.1122]])
         # logits = F.softmax(logits, dim=-1)
+        # print(logits)
         invalid_action_masks = torch.ones_like(logits)
+        # print("initial_mask")
+        # print(invalid_action_masks)
         r = self.mask_factor
+        # import os
+        # file_path = os.path.dirname(os.path.abspath(__file__))
+        # print(file_path)
+        # print("use discrete in 104")
         # print(logits.shape)
         # s:ndarry,和logits行数相同，最后一列是燃料剩余量
         # [[0.11000,0.00000,1.00000],
         # [0.11000,1.00000,1.00000]]
         if self.mask:
+            # print("use discrete in 110")
             if self.use_prior_mask:
+                # print("use discrete in 112")
                 # print("use prior mask!!")
                 if "fuel_remain" in info.keys():
                     fuel_remain = info["fuel_remain"]
@@ -111,16 +121,18 @@ class Actor(nn.Module):
                     fuel_flag = torch.tensor(fuel_flag).to(self.device)
                 else:
                     fuel_flag = torch.ones(s.shape[0]).type(torch.BoolTensor).to(self.device)
-
+                # print("fuel_flag")
+                # print(fuel_flag)
 
                 # print(fuel_flag)
+                # print("s_shape"+str(s.shape[0]))
                 for ii in range(s.shape[0]):
                     if fuel_flag[ii]:
                         invalid_action_masks[ii] = 1
                     else:
                         invalid_action_masks[ii] = 0
                         invalid_action_masks[ii][self.default_actionindex] = 1
-
+                # print(invalid_action_masks)
                 invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
                 # logits_clone = logits.clone()
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
@@ -145,8 +157,27 @@ class Actor(nn.Module):
         else:
             pass
 
+        # self.invalid_action_masks = invalid_action_masks
+        # print(invalid_action_masks)
+        # print("use discrete in 154")
         if self.softmax_output:
+            # print("use discrete in 156")
             logits = F.softmax(logits, dim=-1)
+
+        # if "fuel_remain" in info.keys():
+        #     if min(info["fuel_remain"])<=0:
+        #         print("info:")
+        #         print(info["fuel_remain"])
+        #         print("logits:")
+        #         print(logits)
+        # if "fuel_remain" in info.keys():
+        #     for ii in range(logits.shape[0]):
+        #         if info["fuel_remain"][ii] == 0:
+        #             no_fuel_logits = logits[ii]
+        #             if torch.min(no_fuel_logits) > 1e-6:
+        #                 print("error in discrete.py:166")
+        #                 print(no_fuel_logits)
+        # print("use discrete in 172")
         return logits, h
 
 

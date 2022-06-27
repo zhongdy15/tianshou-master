@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '5,4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '6'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -94,7 +94,7 @@ def get_args():
 
     args = parser.parse_known_args()[0]
     # args.mask = True
-    # args.initial_chances = 3
+    # args.initial_chances = 50
     # args.policy_learn_initial = 3
     # args.total_update_interval = 8
     # args.mask_update_start = 3
@@ -271,7 +271,7 @@ def test_ppo(args=get_args()):
         torch.save(policy.state_dict(), os.path.join(log_path, 'policy.pth'))
 
     def stop_fn(mean_rewards):
-        return mean_rewards >= env.spec.reward_threshold
+        return False#mean_rewards >= env.spec.reward_threshold
 
     # # ---for test fixed policy---
     # policy_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \

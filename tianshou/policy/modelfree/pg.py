@@ -107,6 +107,9 @@ class PGPolicy(BasePolicy):
             Please refer to :meth:`~tianshou.policy.BasePolicy.forward` for
             more detailed explanation.
         """
+        # if "fuel_remain" in batch.info.keys():
+        #     if min(batch.info["fuel_remain"]) <= 0:
+        #         print("no_fuel in 112")
         logits, h = self.actor(batch.obs, state=state, info=batch.info)
         if isinstance(logits, tuple):
             dist = self.dist_fn(*logits)
@@ -119,6 +122,14 @@ class PGPolicy(BasePolicy):
                 act = logits[0]
         else:
             act = dist.sample()
+        # if "fuel_remain" in batch.info.keys():
+        #     if min(batch.info["fuel_remain"]) <= 0:
+        #         # index = torch.argmin(batch.info["fuel_remain"])
+        #         # act = act[index]
+        #         act_no_fuel = act[batch.info["fuel_remain"] <= 0]
+        #         # print(act_no_fuel)
+        #         if torch.max(act_no_fuel)>=0.5:
+        #             print("some error in pg.py:132")
         return Batch(logits=logits, act=act, state=h, dist=dist)
 
     def learn(  # type: ignore
