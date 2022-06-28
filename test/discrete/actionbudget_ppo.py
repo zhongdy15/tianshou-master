@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '6'
+os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -91,6 +91,8 @@ def get_args():
     parser.add_argument('--policy_update_start', type=int, default=1e10)
     parser.add_argument('--policy_learn_initial', type=int, default=250)
 
+    parser.add_argument('--default_action_inex', type=int, default=0)
+
 
     args = parser.parse_known_args()[0]
     # args.mask = True
@@ -111,7 +113,7 @@ def env_make(task, args=get_args()):
                          max_step=args.max_lenth, action_penalty=args.action_penalty)
     elif task.split("_")[0] == "ActionBudget":
         env = gym.make(task.split("_")[1])
-        env = ActionBudgetWrapper(env,action_budget=args.initial_chances)
+        env = ActionBudgetWrapper(env,action_budget=args.initial_chances,default_actionindex=args.default_action_inex)
         #env = gym.make(task)
     else:
         env = gym.make(task)
@@ -158,13 +160,13 @@ def test_ppo(args=get_args()):
         # print("cuda is available")
         # print(args.mask)
         actor = DataParallelNet(
-            Actor(net, args.action_shape, device=args.device, mask=args.mask, mask_factor= args.mask_factor).to(args.device)
+            Actor(net, args.action_shape, device=args.device, mask=args.mask, mask_factor= args.mask_factor, default_actionindex=args.default_action_inex).to(args.device)
         )
         critic = DataParallelNet(Critic(net, device=args.device).to(args.device))
     else:
         # print("cuda is not available")
         # print(args.mask)
-        actor = Actor(net, args.action_shape, device=args.device, mask=args.mask, mask_factor= args.mask_factor).to(args.device)
+        actor = Actor(net, args.action_shape, device=args.device, mask=args.mask, mask_factor= args.mask_factor, default_actionindex=args.default_action_inex).to(args.device)
         critic = Critic(net, device=args.device).to(args.device)
     actor_critic = ActorCritic(actor, critic)
     # orthogonal initialization

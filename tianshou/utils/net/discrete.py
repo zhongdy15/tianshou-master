@@ -45,7 +45,8 @@ class Actor(nn.Module):
         preprocess_net_output_dim: Optional[int] = None,
         device: Union[str, int, torch.device] = "cpu",
         mask: bool = False,
-        mask_factor: float = -1e10
+        mask_factor: float = -1e10,
+        default_actionindex:int = 0
     ) -> None:
         super().__init__()
         self.device = device
@@ -76,7 +77,7 @@ class Actor(nn.Module):
         self.mask_factor = mask_factor
 
         self.use_prior_mask = True
-        self.default_actionindex = 0
+        self.default_actionindex = default_actionindex
 
 
     # def fuel_mask(self,state):
