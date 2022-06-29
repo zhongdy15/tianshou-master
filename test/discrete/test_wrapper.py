@@ -29,7 +29,7 @@ class ActionBudgetWrapper(gym.Wrapper):
 
 if __name__ == '__main__':
     import time
-    env = gym.make("Amidar-v4")
+    env = gym.make("AmidarNoFrameskip-v4")
     env = ActionBudgetWrapper(env,action_budget=4)
 
     env.action_space.seed(42)
