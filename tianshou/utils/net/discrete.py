@@ -76,7 +76,7 @@ class Actor(nn.Module):
         # self.action_chances = 8
         self.mask_factor = mask_factor
 
-        self.use_prior_mask = True
+        self.use_prior_mask = False
         self.default_actionindex = default_actionindex
 
 
@@ -138,22 +138,23 @@ class Actor(nn.Module):
                 # logits_clone = logits.clone()
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
             else:
-                if self.mask_model:
-                    # print("use auto mask!!")
-                    Mask_value = self.mask_model(s)[0]
-                    invalid_action_masks = torch.where(Mask_value < r, torch.zeros_like(logits), torch.ones_like(logits))
-                else:
-                    invalid_action_masks = torch.ones_like(logits)
-
-                for index in range(s.shape[0]):
-                        #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
-                    if sum(invalid_action_masks[index]) <= 1e-5:
-                        # print("there is no action")
-                        invalid_action_masks[index][0] = 1
-
-                # print("!!!device!!!" + self.device)
-                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
-                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                pass
+                # if self.mask_model:
+                #     # print("use auto mask!!")
+                #     Mask_value = self.mask_model(s)[0]
+                #     invalid_action_masks = torch.where(Mask_value < r, torch.zeros_like(logits), torch.ones_like(logits))
+                # else:
+                #     invalid_action_masks = torch.ones_like(logits)
+                #
+                # for index in range(s.shape[0]):
+                #         #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
+                #     if sum(invalid_action_masks[index]) <= 1e-5:
+                #         # print("there is no action")
+                #         invalid_action_masks[index][0] = 1
+                #
+                # # print("!!!device!!!" + self.device)
+                # invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                # logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
 
         else:
             pass

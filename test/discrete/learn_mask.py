@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -33,7 +33,7 @@ from test_wrapper import ActionBudgetWrapper
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='ActionBudget_CartPole-v1')#CartPole-v0 RunningShooter
+    parser.add_argument('--task', type=str, default='ActionBudget_ALE/AirRaid-v5')#CartPole-v0 RunningShooter
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--buffer-size', type=int, default=20000)
     parser.add_argument('--lr', type=float, default=3e-4)
@@ -96,11 +96,11 @@ def get_args():
 
     args = parser.parse_known_args()[0]
     # args.mask = True
-    # args.initial_chances = 50
-    # args.policy_learn_initial = 3
+    # args.initial_chances = 100
+    # args.policy_learn_initial = 0
     # args.total_update_interval = 8
-    # args.mask_update_start = 3
-    # args.policy_update_start = 5
+    # args.mask_update_start = 1
+    # args.policy_update_start = 50000
     # args.epoch = 60
     return args
 
@@ -198,12 +198,16 @@ def test_ppo(args=get_args()):
     log_name = "mask" + str(args.mask) + '_' + \
                ab_str + \
                "seed" + str(args.seed) + '_' + \
+               "int" + str('{:.0e}'.format(args.total_update_interval)) + '_' + \
+               "mst" + str('{:.0e}'.format(args.mask_update_start)) + '_' + \
+               "pst" + str('{:.0e}'.format(args.policy_update_start)) + '_' + \
+               "pini" + str('{:.0e}'.format(args.policy_learn_initial)) + '_' + \
                time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
     log_path = os.path.join(args.logdir, args.task, 'ppo', log_name)
 
     # 使用PPO的策略训练，仅在discrete 上做mask
-    if False:
+    if True:
         policy = MaskPPOPolicy(
             actor,
             critic,
@@ -275,25 +279,36 @@ def test_ppo(args=get_args()):
     def stop_fn(mean_rewards):
         return False#mean_rewards >= env.spec.reward_threshold
 
-    # # ---for test fixed policy---
-    # policy_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/" \
-    #              "chances8_maxstep200_acpenalty0_maskTrue_mf-1e+02_totalinter2e+10_maskst1e+10_policyst1e+10_policyinitial2e+02_2022-05-10-16-29-47" \
-    #              "/policy.pth"
-    #
-    # load_policy = copy.deepcopy(policy)
-    # model = torch.load(policy_pth)
-    # inv_model_2 = Net(state_num * 2, action_num, hidden_sizes=[64, 64], device=args.device,
-    #                 softmax=True).to(args.device)
-    # mask_model_2 = Net(state_num, action_num, hidden_sizes=[64, 64], device=args.device).to(args.device)
-    #
-    # load_policy.inv_model = inv_model_2
-    # load_policy.mask_model = mask_model_2
-    #
-    # load_policy.load_state_dict(torch.load(policy_pth))
-    # #
-    # policy.actor = copy.deepcopy(load_policy.actor)
-    # # policy.inv_model = copy.deepcopy(load_policy.inv_model)
-    # # ---for test fixed policy---
+    # ---for test fixed policy---
+    policy_pth = "log/ActionBudget_ALE/AirRaid-v5/ppo/" \
+                 "chances100_maskFalse_actionbudget100_2022-06-29-14-11-43/policy.pth"
+
+
+    load_policy = PPOPolicy(
+            actor,
+            critic,
+            optim,
+            dist,
+            discount_factor=args.gamma,
+            max_grad_norm=args.max_grad_norm,
+            eps_clip=args.eps_clip,
+            vf_coef=args.vf_coef,
+            ent_coef=args.ent_coef,
+            gae_lambda=args.gae_lambda,
+            reward_normalization=args.rew_norm,
+            dual_clip=args.dual_clip,
+            value_clip=args.value_clip,
+            action_space=env.action_space,
+            deterministic_eval=True,
+            advantage_normalization=args.norm_adv,
+            recompute_advantage=args.recompute_adv,
+        )
+
+    model = torch.load(policy_pth,map_location=args.device)
+
+    load_policy.load_state_dict(model)
+    policy.actor = copy.deepcopy(load_policy.actor)
+    # ---for test fixed policy---
 
 
     # trainer

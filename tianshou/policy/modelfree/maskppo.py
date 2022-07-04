@@ -150,7 +150,7 @@ class MaskPPOPolicy(A2CPolicy):
         actor_path = os.path.join(self.save_dir, 'actor.pth')
         # torch.save(self.inv_model, inv_path)
         # new_model = torch.load(inv_path)
-        fig_save_interval = 120
+        fig_save_interval = 10
 
 
         #---todo in 4/28---
@@ -234,7 +234,7 @@ class MaskPPOPolicy(A2CPolicy):
 
 
             #learn inverse_model
-            if self.learn_index % total_update_interval ==0:
+            if (self.learn_index-policy_learn_initial) % total_update_interval ==0:
                 #ineversemodel是否需要重新初始化
                 pass
 
@@ -244,12 +244,13 @@ class MaskPPOPolicy(A2CPolicy):
             # load_model = torch.load(inv_load_path)
             # load_res = load_model(ss)
 
-            if self.learn_index % total_update_interval < mask_update_start:
+            if (self.learn_index-policy_learn_initial) % total_update_interval < mask_update_start:
                 # 训练inv_model
                 fig_save_index = 0
-                for step in range(repeat):
+                for step in range(1):
                     for b in batch.split(batch_size, merge_last=True):
                         fig_save_index += 1
+                        # print(fig_save_index)
                         # 考虑采用状态的差作为输入
                         # ss = np.concatenate((b.obs, b.obs_next), axis=1)
                         delta_s = b.obs_next - b.obs
@@ -263,55 +264,47 @@ class MaskPPOPolicy(A2CPolicy):
                         # ---inv model plot in 05/11---
                         # for test 测试训练好的inv model的表现
 
-                        action_0_list = [[] for i in range(9)]
-                        action_1_list = [[] for i in range(9)]
+                        action_list = [[] for i in range(2)]
                         with torch.no_grad():
                             load_res = pred
                         # KL factor
-                        factor =torch.log(load_res[0])- torch.log(self(b).logits+epsilon)
+                        factor = torch.log(load_res[0])- torch.log(self(b).logits+epsilon)
                         # # TV factor
                         # factor =  abs(self(b).logits / (load_res[0]+epsilon) - 1)
 
                         # for items in  factor:
-                        obs_copy = copy.deepcopy(b.obs)
-                        rank = np.argsort(obs_copy,axis=0)[:,-1]
-                        for i in rank:
-                            fuel = int(obs_copy[i,-1]*8)
-                            action_0_list[fuel].append(factor[i,0].item())
-                            action_1_list[fuel].append(factor[i,1].item())
-                            #print(obs_copy[i,-1])
+                        fuel_remain_copy = copy.deepcopy(b.info["fuel_remain"])
+                        #fuel_remain_flag = fuel_remain_copy == 0
+                        action_list[0] = torch.max(factor[fuel_remain_copy == 0],dim=1)
+                        action_list[1] = torch.max(factor[fuel_remain_copy > 0],dim=1)
+
+                        action_list[0] = action_list[0].values.detach().cpu().numpy()
+                        action_list[1] = action_list[1].values.detach().cpu().numpy()
+
                         initial = 0
                         width = 0.5
 
-                        plt.close()
-                        plt.figure()
-                        plt.title("action_0")
 
-                        for fuel in range(9):
-                            plt.bar(range(initial,initial+len(action_0_list[fuel])),action_0_list[fuel],width=width)
-                            #plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                            initial += len(action_0_list[fuel])
                         # plt.show()
                         inv_dir = os.path.join(self.save_dir, 'inv')
                         if not os.path.isdir(inv_dir):
                             os.makedirs(inv_dir)
                         if fig_save_index % fig_save_interval == 0:
+                            plt.close()
+                            plt.figure()
+                            plt.title("inv_model_max")
+
+                            for fuel in range(2):
+                                plt.bar(range(initial, initial + len(action_list[fuel])), action_list[fuel],
+                                        width=width)
+                                # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                                initial += len(action_list[fuel])
                             plt.savefig(os.path.join(inv_dir, "action0_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
                             plt.close()
-                        plt.close()
-                        plt.figure()
-                        plt.title("action_1")
-                        # plt.subplot(1,2,1)
-                        initial = 0
-                        for fuel in range(9):
-                            plt.bar(range(initial, initial + len(action_1_list[fuel])), action_1_list[fuel],
-                                    width=width)
-                            # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                            initial += len(action_1_list[fuel])
-                        if fig_save_index % fig_save_interval == 0:
-                            plt.savefig(os.path.join(inv_dir, "action1_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
-                            plt.close()
+
                         # plt.show()
+                        # if(len(action_list[0])>0):
+                        #     print("test:attention!")
                         #---inv model plot in 05/11---
 
 
@@ -333,11 +326,11 @@ class MaskPPOPolicy(A2CPolicy):
             # self.inv_model = load_model
             # ---train mask with fixed inv model in 05/12---
 
-            if policy_update_start > self.learn_index % total_update_interval >= mask_update_start:
+            if policy_update_start > (self.learn_index-policy_learn_initial) % total_update_interval >= mask_update_start:
                 #更新mask
                 # epsilon = 1e-5
                 fig_save_index = 0
-                for step in range(repeat):
+                for step in range(1):
 
                     for b in batch.split(batch_size, merge_last=True):
                         fig_save_index +=1
@@ -365,7 +358,7 @@ class MaskPPOPolicy(A2CPolicy):
 
                         pred_pi_act = torch.masked_select(pi_a, action_one_hot)
                         # KL factor
-                        indepence_factor = torch.log(pred_pi_act) - target_log_pia
+                        indepence_factor = torch.log(pred_pi_act+epsilon) - target_log_pia
                         # TV factor
                         # indepence_factor = abs(target_log_pia.exp().float() / (pred_pi_act+epsilon) - 1)
 
@@ -378,31 +371,36 @@ class MaskPPOPolicy(A2CPolicy):
                         # mask_load_current_res = torch.masked_select(mask_load_all_res, action_one_hot)
 
                         with torch.no_grad():
-                            mask_load_current_res = mask_pred_current_action
-                        mask_res_list = [[] for i in range(9)]
-                        obs_copy = copy.deepcopy(b.obs)
-                        rank = np.argsort(obs_copy, axis=0)[:, -1]
-                        for i in rank:
-                            fuel = int(obs_copy[i, -1] * 8)
-                            mask_res_list[fuel].append(mask_load_current_res[i].item())
-                            # action_1_list[fuel].append(factor[i, 1].item())
-                            # print(obs_copy[i,-1])
+                            mask_factor = mask_pred_all_action
+
+                        mask_res_list = [[] for i in range(2)]
+                        # obs_copy = copy.deepcopy(b.obs)
+                        # rank = np.argsort(obs_copy, axis=0)[:, -1]
+                        fuel_remain_copy = copy.deepcopy(b.info["fuel_remain"])
+                        # fuel_remain_flag = fuel_remain_copy == 0
+                        mask_res_list[0] = torch.max(mask_factor[fuel_remain_copy == 0], dim=1)
+                        mask_res_list[1] = torch.max(mask_factor[fuel_remain_copy > 0], dim=1)
+
+                        mask_res_list[0] = mask_res_list[0].values.detach().cpu().numpy()
+                        mask_res_list[1] = mask_res_list[1].values.detach().cpu().numpy()
+                        # mask_res_list[0] = mask_load_current_res
                         initial = 0
                         width = 0.5
-                        plt.close()
-                        plt.figure()
-                        plt.title("mask")
 
-                        for fuel in range(9):
-                            plt.bar(range(initial, initial + len(mask_res_list[fuel])), mask_res_list[fuel],
-                                    width=width)
-                            # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
-                            initial += len(mask_res_list[fuel])
 
                         mask_dir = os.path.join(self.save_dir, 'mask')
                         if not os.path.isdir(mask_dir):
                             os.makedirs(mask_dir)
                         if fig_save_index % fig_save_interval == 0:
+                            plt.close()
+                            plt.figure()
+                            plt.title("mask")
+
+                            for fuel in range(2):
+                                plt.bar(range(initial, initial + len(mask_res_list[fuel])), mask_res_list[fuel],
+                                        width=width)
+                                # plt.bar(range(initial,initial+len(action_1_list[fuel])),action_1_list[fuel],width=width)
+                                initial += len(mask_res_list[fuel])
                             plt.savefig(os.path.join(mask_dir,"mask_"+str(self.learn_index)+ "_" + str(fig_save_index) + ".png"))
                             plt.close()
                         # plt.show()
@@ -417,7 +415,7 @@ class MaskPPOPolicy(A2CPolicy):
 
             # 更新策略=更新pi+更新mask
             # 每40个回合里的后20个回合更新一次策略
-            if self.learn_index % total_update_interval >=  policy_update_start:
+            if (self.learn_index-policy_learn_initial) % total_update_interval >=  policy_update_start:
                 # 更新mask
                 if torch.cuda.is_available():
                     self.actor.net.module.mask_model = copy.deepcopy(self.mask_model)
