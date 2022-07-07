@@ -1,5 +1,5 @@
 import gym
-
+import numpy as np
 
 class ActionBudgetWrapper(gym.Wrapper):
     def __init__(self, env, action_budget,default_actionindex=0):
@@ -7,6 +7,11 @@ class ActionBudgetWrapper(gym.Wrapper):
         self.action_budget = action_budget
         self.action_budget_remain = action_budget
         self.default_actionindex = default_actionindex
+        self.picsize = env.observation_space.shape[:-1]
+        newlow = np.insert(env.observation_space.low, 0, np.ones(self.picsize, dtype='uint8')* 0, axis=-1)
+        newhigh = np.insert(env.observation_space.high, 0, np.ones(self.picsize, dtype='uint8')* self.action_budget, axis=-1)
+        self.observation_space = gym.spaces.Box(low=newlow, high=newhigh)
+
 
     def step(self, action):
         # 燃料充足时，action不变，第default_actionindex个动作不消耗燃料，其他动作消耗燃料
@@ -20,12 +25,14 @@ class ActionBudgetWrapper(gym.Wrapper):
 
         obs, reward, done, info = self.env.step(real_action)
         info["fuel_remain"] = self.action_budget_remain
-        return obs, reward, done, info
+        newobs = np.insert(obs, 0, np.ones(self.picsize, dtype='uint8')*self.action_budget_remain, axis=-1)
+        return newobs, reward, done, info
 
     def reset(self):
         observation = self.env.reset()
         self.action_budget_remain = self.action_budget
-        return observation
+        newobs = np.insert(observation, 0, np.ones(self.picsize, dtype='uint8') * self.action_budget_remain, axis=-1)
+        return newobs
 
 if __name__ == '__main__':
     import time
