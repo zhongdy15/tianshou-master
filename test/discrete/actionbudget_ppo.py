@@ -238,6 +238,7 @@ def test_ppo(args=get_args()):
             critic,
             optim,
             dist,
+            save_dir=log_path,
             discount_factor=args.gamma,
             max_grad_norm=args.max_grad_norm,
             eps_clip=args.eps_clip,

@@ -8,6 +8,7 @@ from tianshou.data import Batch, ReplayBuffer, to_torch_as
 from tianshou.policy import A2CPolicy
 from tianshou.utils.net.common import ActorCritic
 import matplotlib.pyplot as plt
+import os
 
 class PPOPolicy(A2CPolicy):
     r"""Implementation of Proximal Policy Optimization. arXiv:1707.06347.
@@ -66,6 +67,7 @@ class PPOPolicy(A2CPolicy):
         critic: torch.nn.Module,
         optim: torch.optim.Optimizer,
         dist_fn: Type[torch.distributions.Distribution],
+        save_dir: str,
         eps_clip: float = 0.2,
         dual_clip: Optional[float] = None,
         value_clip: bool = False,
@@ -85,6 +87,8 @@ class PPOPolicy(A2CPolicy):
         self._norm_adv = advantage_normalization
         self._recompute_adv = recompute_advantage
         self._actor_critic: ActorCritic
+        self.learn_index = 0
+        self.save_dir = save_dir
 
         for key,value in kwargs.items():
             print("{}={}".format(key,value))
@@ -202,7 +206,6 @@ class PPOPolicy(A2CPolicy):
 
 
 
-
         losses, clip_losses, vf_losses, ent_losses = [], [], [], []
         for step in range(repeat):
             if self._recompute_adv and step > 0:
@@ -265,6 +268,11 @@ class PPOPolicy(A2CPolicy):
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
+        if self.learn_index % 100 == 0:
+            print(self.learn_index)
+            torch.save(self.state_dict(), os.path.join(self.save_dir, 'policy'+ str(self.learn_index)+'.pth'))
+
+        self.learn_index += 1
 
         return {
             "loss": losses,
