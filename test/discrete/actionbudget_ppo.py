@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '6'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -191,7 +191,7 @@ def test_ppo(args=get_args()):
     #            "policyinitial" + str('{:.0e}'.format(args.policy_learn_initial)) + '_' + \
     #            time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
     actionbudget_flag = False
-    if args.task.split("_")[0] =="ActionBudget":
+    if args.task.split("_")[0] =="ActionBudget" or args.task == "RunningShooter":
         actionbudget_flag = True
 
     ab_str = "actionbudget"+str(args.initial_chances)+"_" if actionbudget_flag else ""

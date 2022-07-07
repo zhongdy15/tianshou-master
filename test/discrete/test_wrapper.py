@@ -10,7 +10,7 @@ class ActionBudgetWrapper(gym.Wrapper):
         self.picsize = env.observation_space.shape[:-1]
         newlow = np.insert(env.observation_space.low, 0, np.ones(self.picsize, dtype='uint8')* 0, axis=-1)
         newhigh = np.insert(env.observation_space.high, 0, np.ones(self.picsize, dtype='uint8')* self.action_budget, axis=-1)
-        self.observation_space = gym.spaces.Box(low=newlow, high=newhigh)
+        self.observation_space = gym.spaces.Box(low=newlow, high=newhigh,dtype=np.uint8)
 
 
     def step(self, action):
