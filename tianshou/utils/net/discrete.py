@@ -76,7 +76,7 @@ class Actor(nn.Module):
         # self.action_chances = 8
         self.mask_factor = mask_factor
 
-        self.use_prior_mask = False
+        self.use_prior_mask = True
         self.default_actionindex = default_actionindex
 
 
