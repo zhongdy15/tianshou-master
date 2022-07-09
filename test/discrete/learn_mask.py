@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -281,7 +281,8 @@ def test_ppo(args=get_args()):
 
     # ---for test fixed policy---
     policy_pth = "log/ActionBudget_ALE/AirRaid-v5/ppo/" \
-                 "chances100_maskFalse_actionbudget100_2022-06-29-14-11-43/policy.pth"
+                 "maskFalse_actionbudget80_seed0_2022-07-05-18-10-05/policy2000.pth"
+                 #"chances100_maskFalse_actionbudget100_2022-06-29-14-11-43/policy.pth"
 
 
     load_policy = PPOPolicy(
@@ -289,6 +290,7 @@ def test_ppo(args=get_args()):
             critic,
             optim,
             dist,
+            save_dir=None,
             discount_factor=args.gamma,
             max_grad_norm=args.max_grad_norm,
             eps_clip=args.eps_clip,

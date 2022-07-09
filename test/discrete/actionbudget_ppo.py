@@ -23,7 +23,7 @@ from tianshou.policy import PPOPolicy
 from tianshou.policy import MaskPPOPolicy
 from tianshou.trainer import onpolicy_trainer
 from tianshou.utils import TensorboardLogger
-from tianshou.utils.net.common import ActorCritic, DataParallelNet, Net
+from tianshou.utils.net.common import ActorCritic, DataParallelNet, Net, ConvNet
 from tianshou.utils.net.discrete import Actor, Critic
 
 from tianshou.env import RunningMan
@@ -33,7 +33,7 @@ from test_wrapper import ActionBudgetWrapper
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--task', type=str, default='ActionBudget_CartPole-v1')#CartPole-v0 RunningShooter
+    parser.add_argument('--task', type=str, default='ActionBudget_AirRaidNoFrameskip-v4')#CartPole-v0 RunningShooter
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--buffer-size', type=int, default=20000)
     parser.add_argument('--lr', type=float, default=3e-4)

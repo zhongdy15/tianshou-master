@@ -150,7 +150,7 @@ class MaskPPOPolicy(A2CPolicy):
         actor_path = os.path.join(self.save_dir, 'actor.pth')
         # torch.save(self.inv_model, inv_path)
         # new_model = torch.load(inv_path)
-        fig_save_interval = 10
+        fig_save_interval = 1
 
 
         #---todo in 4/28---
@@ -248,7 +248,7 @@ class MaskPPOPolicy(A2CPolicy):
                 # 训练inv_model
                 fig_save_index = 0
                 for step in range(1):
-                    for b in batch.split(batch_size, merge_last=True):
+                    for b in batch.split(len(batch), merge_last=True):
                         fig_save_index += 1
                         # print(fig_save_index)
                         # 考虑采用状态的差作为输入
@@ -314,7 +314,10 @@ class MaskPPOPolicy(A2CPolicy):
 
                         action_one_hot = nn.functional.one_hot(b.act.long(), action_shape).float()
 
-                        inv_loss = nn.functional.mse_loss(pred[0], action_one_hot)
+                        log_pred = torch.log(pred[0]+epsilon)
+                        nllloss_func = nn.NLLLoss()
+                        inv_loss = nllloss_func(log_pred, b.act.long())
+                        #inv_loss = nn.functional.mse_loss(pred[0], action_one_hot)
                         self.inv_optim.zero_grad()
                         inv_loss.backward()
                         self.inv_optim.step()
@@ -332,7 +335,7 @@ class MaskPPOPolicy(A2CPolicy):
                 fig_save_index = 0
                 for step in range(1):
 
-                    for b in batch.split(batch_size, merge_last=True):
+                    for b in batch.split(len(batch), merge_last=True):
                         fig_save_index +=1
                         # 利用p(a|s,s')学习mask(s,a)
                         #---todo in 04/29---
