@@ -13,7 +13,7 @@ package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__fil
 # print(package)
 # print(sys.path)
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '6'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 # print(sys.path)
 # import tianshou
 # print(tianshou.utils.__path__)
@@ -310,7 +310,8 @@ def test_ppo(args=get_args()):
         step_per_collect=args.step_per_collect,
         stop_fn=stop_fn,
         save_fn=save_fn,
-        logger=logger
+        logger=logger,
+        save_dir=log_path
     )
     # assert stop_fn(result['best_reward'])
 

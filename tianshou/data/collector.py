@@ -243,11 +243,20 @@ class Collector(object):
                     act = self.policy.exploration_noise(act, self.data)
                 self.data.update(policy=policy, act=act)
 
+            act_logits = to_numpy(result.logits)
             # get bounded and remapped actions first (not saved into buffer)
             action_remap = self.policy.map_action(self.data.act)
             # step in env
             result = self.env.step(action_remap, ready_env_ids)  # type: ignore
             obs_next, rew, done, info = result
+
+            assert len(info) == len(act_logits)
+            for i in range(len(info)):
+                info[i]["act_logits"] = act_logits[i][act[i]]
+                if act_logits[i][act[i]] <= 1e-5:
+                    print("check carefully here")
+
+
 
             self.data.update(obs_next=obs_next, rew=rew, done=done, info=info)
             if self.preprocess_fn:

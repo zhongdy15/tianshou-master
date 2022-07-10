@@ -4,8 +4,8 @@ from typing import Callable, Dict, Optional, Union
 
 import numpy as np
 import tqdm
-
-from tianshou.data import Collector
+import os
+from tianshou.data import Collector, ReplayBuffer
 from tianshou.policy import BasePolicy
 from tianshou.trainer import gather_info, test_episode
 from tianshou.utils import BaseLogger, LazyLogger, MovAvg, tqdm_config
@@ -32,6 +32,7 @@ def onpolicy_trainer(
     logger: BaseLogger = LazyLogger(),
     verbose: bool = True,
     test_in_train: bool = True,
+    save_dir: str = None,
 ) -> Dict[str, Union[float, str]]:
     """A wrapper for on-policy trainer procedure.
 
@@ -83,6 +84,7 @@ def onpolicy_trainer(
         training/testing/updating. Default to a logger that doesn't log anything.
     :param bool verbose: whether to print the information. Default to True.
     :param bool test_in_train: whether to test in the training phase. Default to True.
+    :param bool save_dir: save buffer
 
     :return: See :func:`~tianshou.trainer.gather_info`.
 
@@ -166,8 +168,18 @@ def onpolicy_trainer(
                     repeat=repeat_per_collect
                 )
                 # for test
-                # file_name = "data_collect\\"+time.strftime("%Y%m%d%H%M%S")+".hdf5"
-                # train_collector.buffer.save_hdf5(file_name)
+                save_data_flag = True
+                if save_data_flag:
+                    buffer_dir = os.path.join("/mnt/zdy","buffer0710", "data_collect")
+                    if not os.path.isdir(buffer_dir):
+                        os.makedirs(buffer_dir)
+                    file_name = os.path.join(buffer_dir, "epoch_"+str(epoch)+"step_"+str(env_step)+".hdf5")
+                    train_collector.buffer.save_hdf5(file_name)
+
+                # buf = ReplayBuffer.load_hdf5(file_name)
+                #todo:从这里取出数据来专门训练
+                #网络结构也重新设计：目标是降低P（a|s，s‘）的loss
+                #另外通过P（a|s，s’）需要和pi配合计算无关性因子，buffer里面还要添加这一项，即选择动作a的概率
                 train_collector.reset_buffer(keep_statistics=True)
 
 
