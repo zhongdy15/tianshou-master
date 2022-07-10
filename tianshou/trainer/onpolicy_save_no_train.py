@@ -11,7 +11,7 @@ from tianshou.trainer import gather_info, test_episode
 from tianshou.utils import BaseLogger, LazyLogger, MovAvg, tqdm_config
 
 
-def onpolicy_trainer(
+def onpolicy_trainer_no_train(
     policy: BasePolicy,
     train_collector: Collector,
     test_collector: Optional[Collector],
@@ -161,14 +161,14 @@ def onpolicy_trainer(
                             )
                         else:
                             policy.train()
-                losses = policy.update(
-                    0,
-                    train_collector.buffer,
-                    batch_size=batch_size,
-                    repeat=repeat_per_collect
-                )
+                # losses = policy.update(
+                #     0,
+                #     train_collector.buffer,
+                #     batch_size=batch_size,
+                #     repeat=repeat_per_collect
+                # )
                 # for test
-                save_data_flag = False
+                save_data_flag = True
                 if save_data_flag:
                     buffer_dir = os.path.join("/mnt/zdy","buffer0710", "data_collect")
                     if not os.path.isdir(buffer_dir):
