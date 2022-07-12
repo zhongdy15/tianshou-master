@@ -170,7 +170,7 @@ def onpolicy_trainer_no_train(
                 # for test
                 save_data_flag = True
                 if save_data_flag:
-                    buffer_dir = os.path.join("/media/yyq/data/zdy","buffer0710", "data_collect")
+                    buffer_dir = os.path.join("/media/yyq/data/zdy",save_dir)
                     if not os.path.isdir(buffer_dir):
                         os.makedirs(buffer_dir)
                     file_name = os.path.join(buffer_dir, "epoch_"+str(epoch)+"step_"+str(env_step)+".hdf5")
