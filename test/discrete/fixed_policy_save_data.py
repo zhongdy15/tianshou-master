@@ -35,7 +35,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--task', type=str, default='ActionBudget_AirRaidNoFrameskip-v4')#CartPole-v0 RunningShooter
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--buffer-size', type=int, default=20000)
+    parser.add_argument('--buffer-size', type=int, default=2000)
     parser.add_argument('--lr', type=float, default=3e-4)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--epoch', type=int, default=10)
