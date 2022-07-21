@@ -14,10 +14,7 @@ sys.path.insert(0, package)
 os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 import torch.nn as nn
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument('--lr', type=float, default=0.004)
-args = parser.parse_known_args()[0]
+
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -40,12 +37,7 @@ class InverseModel(nn.Module):
             nn.ReLU(),
             nn.Flatten(),
             layer_init(nn.Linear(32 * 18, 256)),
-            nn.ReLU(),
-            layer_init(nn.Linear(256, 256)),
-            nn.ReLU(),
-            layer_init(nn.Linear(256, 256)),
-            nn.ReLU(),
-        )
+            nn.ReLU(), )
         self.prob_predict = layer_init(nn.Linear(256, 6), std=0.01)
 
     def forward(self, x):
@@ -68,12 +60,7 @@ log_name = "inv_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 log_path = os.path.join('log', 'ActionBudget_ALE/AirRaid-v5', 'ppo', log_name)
 writer = SummaryWriter(log_path)
 inversemodel = InverseModel().to(device)
-optimizer_inversemodel = torch.optim.Adam(inversemodel.parameters(), lr=args.lr)
-
-#增加学习率衰减
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer_inversemodel, step_size=20, gamma=0.1)
-
-
+optimizer_inversemodel = torch.optim.Adam(inversemodel.parameters(), lr=1e-4, eps=1e-5)
 
 repeat = 200
 epoch_losses =[]
@@ -117,7 +104,6 @@ for epoch in range(repeat):
     print("epoch:"+str(epoch)+" average_loss:"+str(np.mean(losses)))
     print(losses)
     writer.add_scalar("loss", np.mean(losses), epoch)
-    scheduler.step()
 print('all_loss')
 print(epoch_losses)
 torch.save(inversemodel, os.path.join(buffer_dir,"inv.pth"))
