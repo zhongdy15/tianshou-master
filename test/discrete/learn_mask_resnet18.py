@@ -19,14 +19,22 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 import torchvision
 
+#mask数据集的构成
+#输入是s：4通道的照片
+#输出是6维向量：每维是状态下执行某个动作的评分
+#监督学习训练的目标是输出的6维向量select出执行动作对应的factor
+#然后factor再和另一个网络的kl factor做监督学习回归
+#数据集包含状态s，target：一个模型过s产生factor，再通过a选择哪一个factor，再和概率做除法
 class MyDataset(Dataset):
-    def __init__(self, all_ss, all_act):
+    def __init__(self, all_s, all_act, all_ss,all_act_logits):
         self.all_ss = all_ss
         self.all_act = all_act
+        self.all_s = all_s
+        self.all_act_logits = all_act_logits
         self.len = len(self.all_ss)
 
     def __getitem__(self, index):
-        return self.all_ss[index], self.all_act[index]
+        return self.all_s[index], self.all_act[index], self.all_ss[index], self.all_act_logits[index]
 
     def __len__(self):
         return self.len
@@ -39,33 +47,41 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 buffer_dir = os.path.join("/media/yyq/data/zdy",
                           "log/ActionBudget_ALE/AirRaid-v5/ppo",
                           "maskFalse_actionbudget100_seed0_2022-07-18-11-24-44")
-buffer_dir = "D:\zhongdy\\research\\tianshou-master\\remote_log\垃圾"
+# buffer_dir = "D:\zhongdy\\research\\tianshou-master\\remote_log\垃圾"
 buffer_list = os.listdir(buffer_dir)
 
 log_name = "inv_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
 log_path = os.path.join('log', 'ActionBudget_ALE/AirRaid-v5', 'ppo', log_name)
-# writer = SummaryWriter(log_path)
+writer = SummaryWriter(log_path)
+
+#加载inv模型
+inv_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/chances8_maxstep200_acpenalty0_maskFalse_mf-100_totalinter20000000000.0_maskst10000000000.0_policyst10000000000.0_policyinitial250_2022-05-05-15-24-55/policy.pth"
+inv_model = torch.load(inv_pth)
+
 
 #修改为resnet18
 num_classes = 6
 model=torchvision.models.resnet18(pretrained=True)
 num_features=model.fc.in_features
 model.fc=nn.Linear(num_features,num_classes)
-model.conv1 = nn.Conv2d(in_channels=8, out_channels=64, kernel_size=7, stride=2, padding=3, bias=False)
+model.conv1 = nn.Conv2d(in_channels=4, out_channels=64, kernel_size=7, stride=2, padding=3, bias=False)
 
 model = model.to(device)
 
-inversemodel = model
-optimizer_inversemodel = torch.optim.Adam(inversemodel.parameters(), lr=args.lr)
+maskmodel = model
+optimizer_maskmodel = torch.optim.Adam(maskmodel.parameters(), lr=args.lr)
 
 #增加学习率衰减
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer_inversemodel, step_size=20, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer_maskmodel, step_size=20, gamma=0.1)
 
 #制作数据集
 all_ss = None
 all_act = None
-for file in buffer_list:
+all_s = None
+all_act_logits = None
+#读取总共150*2000 = 30 w条数据
+for file in buffer_list[0:150]:
     print(file)
     if not file.endswith('hdf5'):
         continue
@@ -73,14 +89,23 @@ for file in buffer_list:
     # 从filename的文件中取得输入：ss，target：act
     filename = os.path.join(buffer_dir, file)
     buf = ReplayBuffer.load_hdf5(filename)
+
     obs = np.array(buf.obs)
     next_obs = np.array(buf.obs_next)
     act = np.array(buf.act)
+    act_prob = torch.tensor(buf.info["act_logits"])
+
+    #获取动作
     act = torch.tensor(act)
+    #获取ss
     ss = np.concatenate((obs, next_obs), axis=-1)
     ss = torch.tensor(ss)
     ss = ss.permute((0, 3, 1, 2))
     ss = ss/255
+    #获取s
+    s = torch.tensor(obs)
+    s = s.permute((0, 3, 1, 2))
+    s = s / 255
     del buf
     # all_ss.append(ss)
     # all_act.append(act)
@@ -88,12 +113,16 @@ for file in buffer_list:
         print("ss_shape:"+str(all_ss.shape))
         all_ss = torch.cat((all_ss,ss),dim=0)
         all_act = torch.cat((all_act, act), dim=0)
+        all_s = torch.cat((all_s, s), dim=0)
+        all_act_logits = torch.cat((all_act_logits, act_prob), dim=0)
     else:
         all_ss = ss
         all_act = act
+        all_s = s
+        all_act_logits = act_prob
 
 
-mydataset = MyDataset(all_ss=all_ss,all_act=all_act)
+mydataset = MyDataset(all_ss=all_ss,all_act=all_act,all_s=all_s,all_act_logits=all_act_logits)
 train_loader = DataLoader(dataset=mydataset,
                            batch_size=64,
                            shuffle=True)
@@ -103,23 +132,37 @@ print("all data loaded!")
 
 repeat = 200
 epoch_losses =[]
+epsilon = 1e-8
 for epoch in range(repeat):
     losses = []
-    for step, (batch_ss, batch_act) in enumerate(train_loader):
+    for step, (batch_s, batch_act, batch_ss, batch_act_logits) in enumerate(train_loader):
         batch_ss = batch_ss.to(device)
         batch_act = batch_act.to(device)
+        batch_s = batch_s.to(device)
+        batch_act_logits = batch_act_logits.to(device)
 
-        logits = inversemodel.forward(batch_ss)
-        # print(logits)
+        #maskmodel predict
+        mask_pred_all_action = maskmodel.forward(batch_s)
+        action_one_hot = nn.functional.one_hot(batch_act.long(), 6).bool()
+        mask_pred_current_action = torch.masked_select(mask_pred_all_action, action_one_hot)
 
-        loss_func = torch.nn.CrossEntropyLoss()
-        loss = loss_func(logits, batch_act)
+        #maskfactor target
+        with torch.no_grad():
+            # 从inv_model里面无梯度地取值用来训练mask
+            pi_a = inv_model(batch_ss)
+        pred_pi_act = torch.masked_select(pi_a, action_one_hot)
+        target_log_pia = batch_act_logits
+        #KL factor
+        indepence_factor = torch.log(pred_pi_act + epsilon) - target_log_pia
+
+        loss_func = torch.nn.MSELoss()
+        loss = loss_func(mask_pred_current_action, indepence_factor)
         # print(loss)
         losses.append(loss.item())
-        optimizer_inversemodel.zero_grad()
+        optimizer_maskmodel.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm_(inversemodel.parameters(), 0.5)
-        optimizer_inversemodel.step()
+        nn.utils.clip_grad_norm_(maskmodel.parameters(), 0.5)
+        optimizer_maskmodel.step()
     epoch_losses.append(np.mean(losses))
     print("epoch:"+str(epoch)+" average_loss:"+str(np.mean(losses)))
     # print(losses)
