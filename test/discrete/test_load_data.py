@@ -11,10 +11,25 @@ torch.set_num_threads(16)
 import sys
 package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 import torch.nn as nn
 import argparse
+from torch.utils.data import Dataset, DataLoader
+import torch
+
+
+class MyDataset(Dataset):
+    def __init__(self, all_ss, all_act):
+        self.all_ss = all_ss
+        self.all_act = all_act
+        self.len = len(self.all_ss)
+
+    def __getitem__(self, index):
+        return self.all_ss[index], self.all_act[index]
+
+    def __len__(self):
+        return self.len
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', type=float, default=0.004)
 args = parser.parse_known_args()[0]
@@ -72,52 +87,61 @@ optimizer_inversemodel = torch.optim.Adam(inversemodel.parameters(), lr=args.lr)
 
 #增加学习率衰减
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer_inversemodel, step_size=20, gamma=0.1)
+all_ss = None
+all_act = None
+
+for file in buffer_list:
+    print(file)
+    if not file.endswith('hdf5'):
+        continue
+
+    # 从filename的文件中取得输入：ss，target：act
+    filename = os.path.join(buffer_dir, file)
+    buf = ReplayBuffer.load_hdf5(filename)
+    obs = np.array(buf.obs)
+    next_obs = np.array(buf.obs_next)
+    act = np.array(buf.act)
+    act = torch.tensor(act)
+    ss = np.concatenate((obs, next_obs), axis=-1)
+    ss = torch.tensor(ss)
+    del buf
+    # all_ss.append(ss)
+    # all_act.append(act)
+    if all_ss is not None:
+        print("ss_shape:"+str(all_ss.shape))
+        all_ss = torch.cat((all_ss,ss),dim=0)
+        all_act = torch.cat((all_act, act), dim=0)
+    else:
+        all_ss = ss
+        all_act = act
 
 
+mydataset = MyDataset(all_ss=all_ss,all_act=all_act)
+train_loader = DataLoader(dataset=mydataset,
+                           batch_size=64,
+                           shuffle=True)
 
-repeat = 200
-epoch_losses =[]
-for epoch in range(repeat):
-
-    for file in buffer_list:
-        # print(file)
-        if not file.endswith('hdf5'):
-            continue
-
-        losses = []
-        #从filename的文件中取得输入：ss，target：act
-        filename = os.path.join(buffer_dir,file)
-        buf = ReplayBuffer.load_hdf5(filename)
-        obs = np.array(buf.obs)
-        next_obs = np.array(buf.obs_next)
-        act = np.array(buf.act)
-        act = torch.tensor(act).to(device)
-        ss = np.concatenate((obs, next_obs), axis=-1)
-        ss = torch.tensor(ss).to(device)
-
-        batchsize = 64
-        batch_ss_list = torch.split(ss,batchsize)
-        batch_act_list = torch.split(act,batchsize)
-
-        for index in range(len(batch_ss_list)):
-            batch_ss = batch_ss_list[index]
-            batch_act = batch_act_list[index]
-            logits = inversemodel.forward(batch_ss)
-            # print(logits)
-
-            loss_func = torch.nn.CrossEntropyLoss()
-            loss = loss_func(logits, batch_act)
-            # print(loss)
-            losses.append(loss.item())
-            optimizer_inversemodel.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(inversemodel.parameters(), 0.5)
-            optimizer_inversemodel.step()
-    epoch_losses.append(np.mean(losses))
-    print("epoch:"+str(epoch)+" average_loss:"+str(np.mean(losses)))
-    print(losses)
-    writer.add_scalar("loss", np.mean(losses), epoch)
-    scheduler.step()
-print('all_loss')
-print(epoch_losses)
-torch.save(inversemodel, os.path.join(buffer_dir,"inv.pth"))
+# repeat = 200
+# epoch_losses =[]
+# for epoch in range(repeat):
+#     losses = []
+#     for step, (batch_ss, batch_act) in enumerate(train_loader):
+#         logits = inversemodel.forward(batch_ss)
+#         # print(logits)
+#
+#         loss_func = torch.nn.CrossEntropyLoss()
+#         loss = loss_func(logits, batch_act)
+#         # print(loss)
+#         losses.append(loss.item())
+#         optimizer_inversemodel.zero_grad()
+#         loss.backward()
+#         nn.utils.clip_grad_norm_(inversemodel.parameters(), 0.5)
+#         optimizer_inversemodel.step()
+#     epoch_losses.append(np.mean(losses))
+#     print("epoch:"+str(epoch)+" average_loss:"+str(np.mean(losses)))
+#     print(losses)
+#     writer.add_scalar("loss", np.mean(losses), epoch)
+#     scheduler.step()
+# print('all_loss')
+# print(epoch_losses)
+# torch.save(inversemodel, os.path.join(buffer_dir,"inv.pth"))
