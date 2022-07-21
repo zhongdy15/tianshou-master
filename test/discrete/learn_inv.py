@@ -11,7 +11,7 @@ torch.set_num_threads(16)
 import sys
 package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '4'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 import torch.nn as nn
 
