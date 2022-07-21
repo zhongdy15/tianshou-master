@@ -65,7 +65,8 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer_inversemodel, step_size=20
 #制作数据集
 all_ss = None
 all_act = None
-for file in buffer_list:
+#读取总共150*2000 = 30 w条数据
+for file in buffer_list[0:150]:
     print(file)
     if not file.endswith('hdf5'):
         continue
