@@ -104,6 +104,7 @@ for epoch in range(repeat):
     print("epoch:"+str(epoch)+" average_loss:"+str(np.mean(losses)))
     print(losses)
     writer.add_scalar("loss", np.mean(losses), epoch)
+    if epoch % 20 == 0:
+        torch.save(inversemodel, os.path.join(log_path, "inv.pth"))
 print('all_loss')
 print(epoch_losses)
-torch.save(inversemodel, os.path.join(buffer_dir,"inv.pth"))
