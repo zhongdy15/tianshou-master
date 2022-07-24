@@ -11,14 +11,14 @@ torch.set_num_threads(16)
 import sys
 package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 import torch.nn as nn
 import argparse
 from torch.utils.data import Dataset, DataLoader
 import torch
 import torchvision
-
+from learn_inv import InverseModel
 #mask数据集的构成
 #输入是s：4通道的照片
 #输出是6维向量：每维是状态下执行某个动作的评分
@@ -39,7 +39,7 @@ class MyDataset(Dataset):
     def __len__(self):
         return self.len
 parser = argparse.ArgumentParser()
-parser.add_argument('--lr', type=float, default=0.004)
+parser.add_argument('--lr', type=float, default=1e-4)
 args = parser.parse_known_args()[0]
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -50,14 +50,15 @@ buffer_dir = os.path.join("/media/yyq/data/zdy",
 # buffer_dir = "D:\zhongdy\\research\\tianshou-master\\remote_log\垃圾"
 buffer_list = os.listdir(buffer_dir)
 
-log_name = "inv_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
+log_name = "mask_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
 log_path = os.path.join('log', 'ActionBudget_ALE/AirRaid-v5', 'ppo', log_name)
 writer = SummaryWriter(log_path)
 
 #加载inv模型
-inv_pth = "/home/zdy/tianshou/test/discrete/log/RunningShooter/ppo/chances8_maxstep200_acpenalty0_maskFalse_mf-100_totalinter20000000000.0_maskst10000000000.0_policyst10000000000.0_policyinitial250_2022-05-05-15-24-55/policy.pth"
-inv_model = torch.load(inv_pth)
+inv_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/inv_2022-07-21-17-18-25/inv.pth"
+# inv_pth = "D:\zhongdy\\research\\tianshou-master\\remote_log\\0721实验二\inv_2022-07-21-17-18-25\inv.pth"
+inv_model = torch.load(inv_pth,map_location=device)
 
 
 #修改为resnet18
@@ -100,12 +101,12 @@ for file in buffer_list[0:150]:
     #获取ss
     ss = np.concatenate((obs, next_obs), axis=-1)
     ss = torch.tensor(ss)
-    ss = ss.permute((0, 3, 1, 2))
-    ss = ss/255
+    # ss = ss.permute((0, 3, 1, 2))
+    # ss = ss/255
     #获取s
     s = torch.tensor(obs)
-    s = s.permute((0, 3, 1, 2))
-    s = s / 255
+    # s = s.permute((0, 3, 1, 2))
+    # s = s / 255
     del buf
     # all_ss.append(ss)
     # all_act.append(act)
@@ -142,7 +143,7 @@ for epoch in range(repeat):
         batch_act_logits = batch_act_logits.to(device)
 
         #maskmodel predict
-        mask_pred_all_action = maskmodel.forward(batch_s)
+        mask_pred_all_action = maskmodel.forward(batch_s.permute((0, 3, 1, 2))/255)
         action_one_hot = nn.functional.one_hot(batch_act.long(), 6).bool()
         mask_pred_current_action = torch.masked_select(mask_pred_all_action, action_one_hot)
 
@@ -150,10 +151,11 @@ for epoch in range(repeat):
         with torch.no_grad():
             # 从inv_model里面无梯度地取值用来训练mask
             pi_a = inv_model(batch_ss)
+            pi_a = torch.nn.functional.softmax(pi_a)
         pred_pi_act = torch.masked_select(pi_a, action_one_hot)
         target_log_pia = batch_act_logits
         #KL factor
-        indepence_factor = torch.log(pred_pi_act + epsilon) - target_log_pia
+        indepence_factor = torch.log(pred_pi_act + epsilon) - torch.log(batch_act_logits)
 
         loss_func = torch.nn.MSELoss()
         loss = loss_func(mask_pred_current_action, indepence_factor)
@@ -169,6 +171,6 @@ for epoch in range(repeat):
     writer.add_scalar("loss", np.mean(losses), epoch)
     scheduler.step()
     if epoch%20 == 0:
-        torch.save(inversemodel, os.path.join(log_path, "inv.pth"))
+        torch.save(maskmodel, os.path.join(log_path, "mask.pth"))
 print('all_loss')
 print(epoch_losses)

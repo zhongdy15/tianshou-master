@@ -48,63 +48,64 @@ class InverseModel(nn.Module):
         return logits
 
 
+if __name__ == '__main__':
 
-buffer_dir = os.path.join("/media/yyq/data/zdy",
-                          "log/ActionBudget_ALE/AirRaid-v5/ppo",
-                          "maskFalse_actionbudget100_seed0_2022-07-18-11-24-44")
-# buffer_dir = "D:\zhongdy\\research\\tianshou-master\\remote_log\垃圾"
-buffer_list = os.listdir(buffer_dir)
+    buffer_dir = os.path.join("/media/yyq/data/zdy",
+                              "log/ActionBudget_ALE/AirRaid-v5/ppo",
+                              "maskFalse_actionbudget100_seed0_2022-07-18-11-24-44")
+    # buffer_dir = "D:\zhongdy\\research\\tianshou-master\\remote_log\垃圾"
+    buffer_list = os.listdir(buffer_dir)
 
-log_name = "inv_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
+    log_name = "inv_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
-log_path = os.path.join('log', 'ActionBudget_ALE/AirRaid-v5', 'ppo', log_name)
-writer = SummaryWriter(log_path)
-inversemodel = InverseModel().to(device)
-optimizer_inversemodel = torch.optim.Adam(inversemodel.parameters(), lr=1e-4, eps=1e-5)
+    log_path = os.path.join('log', 'ActionBudget_ALE/AirRaid-v5', 'ppo', log_name)
+    writer = SummaryWriter(log_path)
+    inversemodel = InverseModel().to(device)
+    optimizer_inversemodel = torch.optim.Adam(inversemodel.parameters(), lr=1e-4, eps=1e-5)
 
-repeat = 200
-epoch_losses =[]
-for epoch in range(repeat):
+    repeat = 200
+    epoch_losses =[]
+    for epoch in range(repeat):
 
-    for file in buffer_list:
-        # print(file)
-        if not file.endswith('hdf5'):
-            continue
+        for file in buffer_list:
+            # print(file)
+            if not file.endswith('hdf5'):
+                continue
 
-        losses = []
-        #从filename的文件中取得输入：ss，target：act
-        filename = os.path.join(buffer_dir,file)
-        buf = ReplayBuffer.load_hdf5(filename)
-        obs = np.array(buf.obs)
-        next_obs = np.array(buf.obs_next)
-        act = np.array(buf.act)
-        act = torch.tensor(act).to(device)
-        ss = np.concatenate((obs, next_obs), axis=-1)
-        ss = torch.tensor(ss).to(device)
+            losses = []
+            #从filename的文件中取得输入：ss，target：act
+            filename = os.path.join(buffer_dir,file)
+            buf = ReplayBuffer.load_hdf5(filename)
+            obs = np.array(buf.obs)
+            next_obs = np.array(buf.obs_next)
+            act = np.array(buf.act)
+            act = torch.tensor(act).to(device)
+            ss = np.concatenate((obs, next_obs), axis=-1)
+            ss = torch.tensor(ss).to(device)
 
-        batchsize = 64
-        batch_ss_list = torch.split(ss,batchsize)
-        batch_act_list = torch.split(act,batchsize)
+            batchsize = 64
+            batch_ss_list = torch.split(ss,batchsize)
+            batch_act_list = torch.split(act,batchsize)
 
-        for index in range(len(batch_ss_list)):
-            batch_ss = batch_ss_list[index]
-            batch_act = batch_act_list[index]
-            logits = inversemodel.forward(batch_ss)
-            # print(logits)
+            for index in range(len(batch_ss_list)):
+                batch_ss = batch_ss_list[index]
+                batch_act = batch_act_list[index]
+                logits = inversemodel.forward(batch_ss)
+                # print(logits)
 
-            loss_func = torch.nn.CrossEntropyLoss()
-            loss = loss_func(logits, batch_act)
-            # print(loss)
-            losses.append(loss.item())
-            optimizer_inversemodel.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(inversemodel.parameters(), 0.5)
-            optimizer_inversemodel.step()
-    epoch_losses.append(np.mean(losses))
-    print("epoch:"+str(epoch)+" average_loss:"+str(np.mean(losses)))
-    print(losses)
-    writer.add_scalar("loss", np.mean(losses), epoch)
-    if epoch % 20 == 0:
-        torch.save(inversemodel, os.path.join(log_path, "inv.pth"))
-print('all_loss')
-print(epoch_losses)
+                loss_func = torch.nn.CrossEntropyLoss()
+                loss = loss_func(logits, batch_act)
+                # print(loss)
+                losses.append(loss.item())
+                optimizer_inversemodel.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(inversemodel.parameters(), 0.5)
+                optimizer_inversemodel.step()
+        epoch_losses.append(np.mean(losses))
+        print("epoch:"+str(epoch)+" average_loss:"+str(np.mean(losses)))
+        print(losses)
+        writer.add_scalar("loss", np.mean(losses), epoch)
+        if epoch % 20 == 0:
+            torch.save(inversemodel, os.path.join(log_path, "inv.pth"))
+    print('all_loss')
+    print(epoch_losses)
