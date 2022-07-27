@@ -79,6 +79,13 @@ class Actor(nn.Module):
         self.use_prior_mask = True
         self.default_actionindex = default_actionindex
 
+        if True:#self.mask and not self.use_prior_mask:
+            #如果要用mask，但是不用先验的mask
+            self.threshold = 1.0
+            mask_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/mask_2022-07-22-15-17-53/"
+            self.mask_model = torch.load(mask_pth+"mask.pth", map_location=device)
+            self.mask_pth = mask_pth
+
 
     # def fuel_mask(self,state):
     #     max_lenth = self.max_lenth
@@ -138,26 +145,52 @@ class Actor(nn.Module):
                 # logits_clone = logits.clone()
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
             else:
-                pass
-                # if self.mask_model:
-                #     # print("use auto mask!!")
-                #     Mask_value = self.mask_model(s)[0]
-                #     invalid_action_masks = torch.where(Mask_value < r, torch.zeros_like(logits), torch.ones_like(logits))
-                # else:
-                #     invalid_action_masks = torch.ones_like(logits)
-                #
-                # for index in range(s.shape[0]):
-                #         #对所有的mask，如果所有的值都比较小（都被mask了），执行第一个动作
-                #     if sum(invalid_action_masks[index]) <= 1e-5:
-                #         # print("there is no action")
-                #         invalid_action_masks[index][0] = 1
-                #
-                # # print("!!!device!!!" + self.device)
-                # invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
-                # logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                with torch.no_grad():
+                    mask_pred_all_action = self.mask_model.forward(s.permute((0, 3, 1, 2)) / 255)
+                mask_factor_max = torch.max(mask_pred_all_action, dim=1).values
+                for ii in range(s.shape[0]):
+                    if mask_factor_max[ii] > self.threshold:
+                        invalid_action_masks[ii] = 1
+                    else:
+                        invalid_action_masks[ii] = 0
+                        invalid_action_masks[ii][self.default_actionindex] = 1
+                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                # logits_clone = logits.clone()
+                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+
+
 
         else:
-            pass
+            # for test in 0725
+            # test maskmodel in no mask ppo
+
+            # mask_factor
+            with torch.no_grad():
+                mask_pred_all_action = self.mask_model.forward(s.permute((0, 3, 1, 2)) / 255)
+            mask_factor_max = torch.max(mask_pred_all_action, dim=1).values
+            mask_pred_all_action = mask_pred_all_action.cpu().numpy()
+            #fuel_remain
+            if "fuel_remain" in info.keys():
+                fuel_remain = info["fuel_remain"]
+            else:
+                fuel_remain = np.ones(s.shape[0]) * 800
+
+            if "frame_number" in info.keys():
+                frame_number = info["frame_number"]
+            else:
+                frame_number = np.ones(s.shape[0]) * 0
+
+            import csv
+            import os
+            file = self.mask_pth + "save_mask_factor_0727.csv"
+            with open(file, 'w', encoding='utf-8', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['frame_number', 'fuel_remain', 'action_0', 'action_1', 'action_2', 'action_3', 'action_4', 'action_5'])
+                row =  np.concatenate((np.atleast_2d(frame_number).T,np.atleast_2d(fuel_remain).T,mask_pred_all_action),axis=1)
+                # writer.writerows([[0,10,0.2,0.2,0.1,0.1,0.1,0.2]])
+                writer.writerows(row)
+
+            # print("to save in csv")
 
         # self.invalid_action_masks = invalid_action_masks
         # print(invalid_action_masks)
