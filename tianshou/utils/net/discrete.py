@@ -165,30 +165,32 @@ class Actor(nn.Module):
             # test maskmodel in no mask ppo
 
             # mask_factor
-            with torch.no_grad():
-                mask_pred_all_action = self.mask_model.forward(s.permute((0, 3, 1, 2)) / 255)
-            mask_factor_max = torch.max(mask_pred_all_action, dim=1).values
-            mask_pred_all_action = mask_pred_all_action.cpu().numpy()
-            #fuel_remain
-            if "fuel_remain" in info.keys():
-                fuel_remain = info["fuel_remain"]
-            else:
-                fuel_remain = np.ones(s.shape[0]) * 800
+            save_csv_flag = True
+            if save_csv_flag:
+                with torch.no_grad():
+                    mask_pred_all_action = self.mask_model.forward(s.permute((0, 3, 1, 2)) / 255)
+                mask_factor_max = torch.max(mask_pred_all_action, dim=1).values
+                mask_pred_all_action = mask_pred_all_action.cpu().numpy()
+                #fuel_remain
+                if "fuel_remain" in info.keys():
+                    fuel_remain = info["fuel_remain"]
+                else:
+                    fuel_remain = np.ones(s.shape[0]) * 800
 
-            if "frame_number" in info.keys():
-                frame_number = info["frame_number"]
-            else:
-                frame_number = np.ones(s.shape[0]) * 0
+                if "frame_number" in info.keys():
+                    frame_number = info["frame_number"]
+                else:
+                    frame_number = np.ones(s.shape[0]) * 0
 
-            import csv
-            import os
-            file = self.mask_pth + "save_mask_factor_0727.csv"
-            with open(file, 'w', encoding='utf-8', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(['frame_number', 'fuel_remain', 'action_0', 'action_1', 'action_2', 'action_3', 'action_4', 'action_5'])
-                row =  np.concatenate((np.atleast_2d(frame_number).T,np.atleast_2d(fuel_remain).T,mask_pred_all_action),axis=1)
-                # writer.writerows([[0,10,0.2,0.2,0.1,0.1,0.1,0.2]])
-                writer.writerows(row)
+                import csv
+                import os
+                file = self.mask_pth + "save_mask_factor_0727.csv"
+                with open(file, 'w', encoding='utf-8', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow(['frame_number', 'fuel_remain', 'action_0', 'action_1', 'action_2', 'action_3', 'action_4', 'action_5'])
+                    row =  np.concatenate((np.atleast_2d(frame_number).T,np.atleast_2d(fuel_remain).T,mask_pred_all_action),axis=1)
+                    # writer.writerows([[0,10,0.2,0.2,0.1,0.1,0.1,0.2]])
+                    writer.writerows(row)
 
             # print("to save in csv")
 
