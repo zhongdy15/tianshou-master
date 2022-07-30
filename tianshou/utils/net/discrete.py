@@ -185,7 +185,7 @@ class Actor(nn.Module):
                 import csv
                 import os
                 file = self.mask_pth + "save_mask_factor_0727.csv"
-                with open(file, 'w', encoding='utf-8', newline='') as file:
+                with open(file, 'a', encoding='utf-8', newline='') as file:
                     writer = csv.writer(file)
                     writer.writerow(['frame_number', 'fuel_remain', 'action_0', 'action_1', 'action_2', 'action_3', 'action_4', 'action_5'])
                     row =  np.concatenate((np.atleast_2d(frame_number).T,np.atleast_2d(fuel_remain).T,mask_pred_all_action),axis=1)

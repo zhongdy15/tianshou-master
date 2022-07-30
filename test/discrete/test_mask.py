@@ -59,7 +59,7 @@ all_s = None
 all_act_logits = None
 all_fuel = None
 #读取总共150*2000 = 30 w条数据
-for file in buffer_list:
+for file in buffer_list[0:1]:
     print(file)
     if not file.endswith('hdf5'):
         continue
@@ -109,7 +109,7 @@ for file in buffer_list:
 mydataset = MyDataset(all_ss=all_ss,all_act=all_act,all_s=all_s,all_act_logits=all_act_logits,all_fuel=all_fuel)
 train_loader = DataLoader(dataset=mydataset,
                            batch_size=64,
-                           shuffle=True)
+                           shuffle=False)
 print("all data loaded!")
 #制作完毕
 for step, (batch_s, batch_act, batch_ss, batch_act_logits, batch_fuel) in enumerate(train_loader):
@@ -131,6 +131,11 @@ for step, (batch_s, batch_act, batch_ss, batch_act_logits, batch_fuel) in enumer
     # obs_copy = copy.deepcopy(b.obs)
     # rank = np.argsort(obs_copy, axis=0)[:, -1]
     fuel_remain_copy = copy.deepcopy(batch_fuel)
+    max_fuel = torch.max(fuel_remain_copy).item()
+    print(max_fuel)
+    if  max_fuel >= 99.5:
+        print("here")
+
     # fuel_remain_flag = fuel_remain_copy == 0
     mask_res_list[0] = torch.max(mask_factor[fuel_remain_copy == 0], dim=1)
     mask_res_list[1] = torch.max(mask_factor[fuel_remain_copy > 0], dim=1)
@@ -158,5 +163,3 @@ for step, (batch_s, batch_act, batch_ss, batch_act_logits, batch_fuel) in enumer
 
 
     plt.show()
-
-    print("!!")
