@@ -161,12 +161,12 @@ def onpolicy_trainer_no_train(
                             )
                         else:
                             policy.train()
-                # losses = policy.update(
-                #     0,
-                #     train_collector.buffer,
-                #     batch_size=batch_size,
-                #     repeat=repeat_per_collect
-                # )
+                losses = policy.update(
+                    0,
+                    train_collector.buffer,
+                    batch_size=batch_size,
+                    repeat=repeat_per_collect
+                )
                 # for test
                 save_data_flag = True
                 if save_data_flag:
@@ -183,19 +183,19 @@ def onpolicy_trainer_no_train(
                 train_collector.reset_buffer(keep_statistics=True)
 
 
-                # step = max(
-                #     [1] + [len(v) for v in losses.values() if isinstance(v, list)]
-                # )
-                # gradient_step += step
-                # for k in losses.keys():
-                #     stat[k].add(losses[k])
-                #     losses[k] = stat[k].get()
-                #     data[k] = f"{losses[k]:.3f}"
-                # logger.log_update_data(losses, gradient_step)
+                step = max(
+                    [1] + [len(v) for v in losses.values() if isinstance(v, list)]
+                )
+                gradient_step += step
+                for k in losses.keys():
+                    stat[k].add(losses[k])
+                    losses[k] = stat[k].get()
+                    data[k] = f"{losses[k]:.3f}"
+                logger.log_update_data(losses, gradient_step)
                 t.set_postfix(**data)
             if t.n <= t.total:
                 t.update()
-        # logger.save_data(epoch, env_step, gradient_step, save_checkpoint_fn)
+        logger.save_data(epoch, env_step, gradient_step, save_checkpoint_fn)
         # test
         if test_collector is not None:
             test_result = test_episode(

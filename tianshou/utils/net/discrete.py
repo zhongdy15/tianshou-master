@@ -79,7 +79,7 @@ class Actor(nn.Module):
         self.use_prior_mask =  True
         self.default_actionindex = default_actionindex
 
-        if True:#self.mask and not self.use_prior_mask:
+        if self.mask and not self.use_prior_mask:
             #如果要用mask，但是不用先验的mask
             self.threshold = 1.0
             mask_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/mask_2022-07-22-15-17-53/"

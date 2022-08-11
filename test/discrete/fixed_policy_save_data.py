@@ -276,25 +276,25 @@ def test_ppo(args=get_args()):
     def stop_fn(mean_rewards):
         return False#mean_rewards >= env.spec.reward_threshold
 
-    # ---for test fixed policy---
-    policy_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/" \
-                 "maskFalse_actionbudget100_seed20_2022-07-12-10-17-39/" \
-                 "policy1500.pth"
-    # policy_pth = "D:\zhongdy\\research\\tianshou-master\\remote_log\\0711实验一\maskFalse_actionbudget100_seed20_2022-07-12-10-17-39\\policy1500.pth"
-    load_policy = copy.deepcopy(policy)
-    # model = torch.load(policy_pth)
-    # inv_model_2 = Net(state_num * 2, action_num, hidden_sizes=[64, 64], device=args.device,
-    #                 softmax=True).to(args.device)
-    # mask_model_2 = Net(state_num, action_num, hidden_sizes=[64, 64], device=args.device).to(args.device)
+    # # ---for test fixed policy---
+    # policy_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/" \
+    #              "maskFalse_actionbudget100_seed20_2022-07-12-10-17-39/" \
+    #              "policy1500.pth"
+    # # policy_pth = "D:\zhongdy\\research\\tianshou-master\\remote_log\\0711实验一\maskFalse_actionbudget100_seed20_2022-07-12-10-17-39\\policy1500.pth"
+    # load_policy = copy.deepcopy(policy)
+    # # model = torch.load(policy_pth)
+    # # inv_model_2 = Net(state_num * 2, action_num, hidden_sizes=[64, 64], device=args.device,
+    # #                 softmax=True).to(args.device)
+    # # mask_model_2 = Net(state_num, action_num, hidden_sizes=[64, 64], device=args.device).to(args.device)
+    # #
+    # # load_policy.inv_model = inv_model_2
+    # # load_policy.mask_model = mask_model_2
     #
-    # load_policy.inv_model = inv_model_2
-    # load_policy.mask_model = mask_model_2
-
-    load_policy.load_state_dict(torch.load(policy_pth))
-    #
-    policy.actor = copy.deepcopy(load_policy.actor)
-    # policy.inv_model = copy.deepcopy(load_policy.inv_model)
-    # ---for test fixed policy---
+    # load_policy.load_state_dict(torch.load(policy_pth))
+    # #
+    # policy.actor = copy.deepcopy(load_policy.actor)
+    # # policy.inv_model = copy.deepcopy(load_policy.inv_model)
+    # # ---for test fixed policy---
 
 
     # trainer
@@ -311,7 +311,7 @@ def test_ppo(args=get_args()):
         stop_fn=stop_fn,
         save_fn=save_fn,
         logger=logger,
-        test_in_train=False,
+        # test_in_train=False,
         save_dir=log_path
     )
     # assert stop_fn(result['best_reward'])
