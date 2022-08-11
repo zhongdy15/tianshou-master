@@ -11,7 +11,7 @@ torch.set_num_threads(16)
 import sys
 package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 import torch.nn as nn
 
@@ -52,7 +52,8 @@ if __name__ == '__main__':
 
     buffer_dir = os.path.join("/media/yyq/data/zdy",
                               "log/ActionBudget_ALE/AirRaid-v5/ppo",
-                              "maskFalse_actionbudget100_seed0_2022-07-18-11-24-44")
+                              "maskTrue_actionbudget100_seed0_2022-08-11-21-47-06")
+    # 之前较好的数据集："maskFalse_actionbudget100_seed0_2022-07-18-11-24-44")
     # buffer_dir = "D:\zhongdy\\research\\tianshou-master\\remote_log\垃圾"
     buffer_list = os.listdir(buffer_dir)
 
