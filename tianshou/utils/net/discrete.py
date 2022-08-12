@@ -136,15 +136,14 @@ class Actor(nn.Module):
                 # print("s_shape"+str(s.shape[0]))
                 for ii in range(s.shape[0]):
                     if fuel_flag[ii]:
-                        # invalid_action_masks[ii] = 1
-                        pass
+                        invalid_action_masks[ii] = 1
                     else:
-                        logits[ii] = torch.ones_like(logits[ii])
-                        # invalid_action_masks[ii] = 0
-                        # invalid_action_masks[ii][self.default_actionindex] = 1
-
-                # invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
-                # logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
+                        invalid_action_masks[ii] = 0
+                        invalid_action_masks[ii][self.default_actionindex] = 1
+                # print(invalid_action_masks)
+                invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
+                # logits_clone = logits.clone()
+                logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
             else:
                 with torch.no_grad():
                     mask_pred_all_action = self.mask_model.forward(s.permute((0, 3, 1, 2)) / 255)
