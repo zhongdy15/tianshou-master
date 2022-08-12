@@ -166,7 +166,7 @@ class Actor(nn.Module):
             # test maskmodel in no mask ppo
 
             # mask_factor
-            save_csv_flag = True
+            save_csv_flag = False
             if save_csv_flag:
                 with torch.no_grad():
                     mask_pred_all_action = self.mask_model.forward(s.permute((0, 3, 1, 2)) / 255)
