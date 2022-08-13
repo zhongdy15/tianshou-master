@@ -76,13 +76,13 @@ class Actor(nn.Module):
         # self.action_chances = 8
         self.mask_factor = mask_factor
 
-        self.use_prior_mask =  True
+        self.use_prior_mask =  False
         self.default_actionindex = default_actionindex
 
         if self.mask and not self.use_prior_mask:
             #如果要用mask，但是不用先验的mask
-            self.threshold = 1.0
-            mask_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/mask_2022-07-22-15-17-53/"
+            self.threshold = 0.12
+            mask_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/mask_2022-08-13-21-09-37/"
             self.mask_model = torch.load(mask_pth+"mask.pth", map_location=device)
             self.mask_pth = mask_pth
 
