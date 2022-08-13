@@ -11,7 +11,7 @@ torch.set_num_threads(16)
 import sys
 package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '5'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 import torch.nn as nn
 import argparse
@@ -60,10 +60,10 @@ writer = SummaryWriter(log_path)
 #这是之前效果好的inv_pth
 #inv_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/inv_2022-07-21-17-18-25/inv.pth"
 
-inv_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/inv_2022-08-11-23-18-28/inv.pth"
-
-# inv_pth = "D:\zhongdy\\research\\tianshou-master\\remote_log\\0721实验二\inv_2022-07-21-17-18-25\inv.pth"
-inv_model = torch.load(inv_pth,map_location=device)
+# inv_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/inv_2022-08-11-23-18-28/inv.pth"
+#
+# # inv_pth = "D:\zhongdy\\research\\tianshou-master\\remote_log\\0721实验二\inv_2022-07-21-17-18-25\inv.pth"
+# inv_model = torch.load(inv_pth,map_location=device)
 
 
 #修改为resnet18
@@ -87,7 +87,9 @@ all_act = None
 all_s = None
 all_act_logits = None
 #读取总共150*2000 = 30 w条数据
-for file in buffer_list[0:150]:
+
+# buffer_list = ["epoch_1step_2000.hdf5"]
+for file in buffer_list[0:40]:
     print(file)
     if not file.endswith('hdf5'):
         continue
@@ -143,24 +145,31 @@ for epoch in range(repeat):
     losses = []
     for step, (batch_s, batch_act, batch_ss, batch_act_logits) in enumerate(train_loader):
         batch_ss = batch_ss.to(device)
-        batch_act = batch_act.to(device)
+        # batch_act = batch_act.to(device)
+
         batch_s = batch_s.to(device)
         batch_act_logits = batch_act_logits.to(device)
-
+        batch_act = torch.tensor(np.random.randint(0, 6, size=len(batch_s))).to(device)
         #maskmodel predict
         mask_pred_all_action = maskmodel.forward(batch_s.permute((0, 3, 1, 2))/255)
         action_one_hot = nn.functional.one_hot(batch_act.long(), 6).bool()
         mask_pred_current_action = torch.masked_select(mask_pred_all_action, action_one_hot)
 
         #maskfactor target
-        with torch.no_grad():
-            # 从inv_model里面无梯度地取值用来训练mask
-            pi_a = inv_model(batch_ss)
-            pi_a = torch.nn.functional.softmax(pi_a)
-        pred_pi_act = torch.masked_select(pi_a, action_one_hot)
-        target_log_pia = batch_act_logits
-        #KL factor
-        indepence_factor = torch.log(pred_pi_act + epsilon) - torch.log(batch_act_logits)
+        # with torch.no_grad():
+        #     # 从inv_model里面无梯度地取值用来训练mask
+        #     pi_a = inv_model(batch_ss)
+        #     pi_a = torch.nn.functional.softmax(pi_a)
+        # pred_pi_act = torch.masked_select(pi_a, action_one_hot)
+        # target_log_pia = batch_act_logits
+        # #KL factor
+        # indepence_factor = torch.log(pred_pi_act + epsilon) - torch.log(batch_act_logits)
+
+        label_1 = torch.normal(1,0.2,size=(len(batch_s),)).to(device)
+        label_2 = torch.normal(0,0.1,size=(len(batch_s),)).to(device)
+
+        label = (batch_s[:,0,0,0] >0 ) *label_1 + (batch_s[:,0,0,0]<=0) * label_2
+        indepence_factor = label
 
         loss_func = torch.nn.MSELoss()
         loss = loss_func(mask_pred_current_action, indepence_factor)
