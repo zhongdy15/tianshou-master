@@ -11,7 +11,7 @@ torch.set_num_threads(16)
 import sys
 package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 sys.path.insert(0, package)
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 from tianshou.data import Collector, VectorReplayBuffer, ReplayBuffer
 import torch.nn as nn
 
@@ -36,9 +36,9 @@ class InverseModel(nn.Module):
             layer_init(nn.Conv2d(32, 32, kernel_size=4, stride=2)),
             nn.ReLU(),
             nn.Flatten(),
-            layer_init(nn.Linear(32 * 18, 256)),
+            layer_init(nn.Linear(32 * 4 *3, 256)),
             nn.ReLU(), )
-        self.prob_predict = layer_init(nn.Linear(256, 6), std=0.01)
+        self.prob_predict = layer_init(nn.Linear(256, 7), std=0.01)
 
     def forward(self, x):
         bchw_x = x.permute((0, 3, 1, 2))
@@ -51,15 +51,15 @@ class InverseModel(nn.Module):
 if __name__ == '__main__':
 
     buffer_dir = os.path.join("/media/yyq/data/zdy",
-                              "log/ActionBudget_ALE/AirRaid-v5/ppo",
-                              "maskTrue_actionbudget100_seed0_2022-08-11-21-47-06")
+                              "log/ActionBudget_ALE/Assault-v5/ppo",
+                              "maskTrue_actionbudget200_seed0_2022-08-15-16-47-12")
     # 之前较好的数据集："maskFalse_actionbudget100_seed0_2022-07-18-11-24-44")
     # buffer_dir = "D:\zhongdy\\research\\tianshou-master\\remote_log\垃圾"
     buffer_list = os.listdir(buffer_dir)
 
     log_name = "inv_" + time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
 
-    log_path = os.path.join('log', 'ActionBudget_ALE/AirRaid-v5', 'ppo', log_name)
+    log_path = os.path.join('log', 'ActionBudget_ALE/Assault-v5', 'ppo', log_name)
     writer = SummaryWriter(log_path)
     inversemodel = InverseModel().to(device)
     optimizer_inversemodel = torch.optim.Adam(inversemodel.parameters(), lr=1e-4, eps=1e-5)
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     for epoch in range(repeat):
 
         for file in buffer_list:
-            # print(file)
+            print(file)
             if not file.endswith('hdf5'):
                 continue
 
