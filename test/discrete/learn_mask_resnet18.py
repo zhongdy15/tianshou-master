@@ -144,7 +144,7 @@ for epoch in range(repeat):
 
         #maskmodel predict
         mask_pred_all_action = maskmodel.forward(batch_s.permute((0, 3, 1, 2))/255)
-        action_one_hot = nn.functional.one_hot(batch_act.long(), 6).bool()
+        action_one_hot = nn.functional.one_hot(batch_act.long(), num_classes).bool()
         mask_pred_current_action = torch.masked_select(mask_pred_all_action, action_one_hot)
 
         #maskfactor target
