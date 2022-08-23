@@ -76,18 +76,12 @@ class Actor(nn.Module):
         # self.action_chances = 8
         self.mask_factor = mask_factor
 
-        self.use_prior_mask =  True
+        self.use_prior_mask =  False
         self.default_actionindex = default_actionindex
-
-        self.filesavedir = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/state_save/"
-        import os
-        if not os.path.isdir(self.filesavedir):
-            os.makedirs(self.filesavedir)
-        self.filesavepath = os.path.join(self.filesavedir,"state.txt")
 
         if self.mask and not self.use_prior_mask:
             #如果要用mask，但是不用先验的mask
-            self.threshold = 0.45
+            self.threshold = 0.12
             mask_pth = "/home/zdy/home/zdy/tianshou/test/discrete/log/ActionBudget_ALE/AirRaid-v5/ppo/mask_2022-08-13-21-09-37/"
             self.mask_model = torch.load(mask_pth+"mask.pth", map_location=device)
             self.mask_pth = mask_pth
@@ -151,26 +145,11 @@ class Actor(nn.Module):
                 # logits_clone = logits.clone()
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
             else:
-                # if s[0,0,0,0] % 10 == 1 :
-                #     print("test!")
-                # if "fuel_remain" in info.keys():
-                #     fuel_remain = info["fuel_remain"]
-                #     print(fuel_remain)
                 with torch.no_grad():
                     mask_pred_all_action = self.mask_model.forward(s.permute((0, 3, 1, 2)) / 255)
                 mask_factor_max = torch.max(mask_pred_all_action, dim=1).values
-                # print(mask_factor_max)
-
-                filename = self.filesavepath
-
-                file_object =  open(filename, 'a')
-
-
                 for ii in range(s.shape[0]):
-                    file_object.write(str(s[ii,0,0,0].item()) + "    "+str(mask_factor_max[ii].item())+"\n")
-
-
-                    if s[ii,0,0,0] > 0:
+                    if mask_factor_max[ii] > self.threshold:
                         invalid_action_masks[ii] = 1
                     else:
                         invalid_action_masks[ii] = 0
@@ -178,7 +157,7 @@ class Actor(nn.Module):
                 invalid_action_masks = invalid_action_masks.type(torch.BoolTensor).to(self.device)
                 # logits_clone = logits.clone()
                 logits = torch.where(invalid_action_masks, logits, torch.tensor(-1e+8).to(self.device))
-                file_object.close()
+
 
 
         else:
